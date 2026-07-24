@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>看房对比助手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+--primary:#4A90D9;--primary-dark:#3a7bc8;--primary-light:#e8f1fb;
+--success:#52c41a;--success-bg:#f0fbeb;
+--warning:#faad14;--warning-bg:#fffbe6;
+--danger:#ff4d4f;--danger-bg:#fff1f0;
+--bg:#f0f2f5;--card:#ffffff;--border:#e8e8e8;
+--text:#333;--text-2:#666;--text-3:#999;
+--radius:12px;--shadow:0 2px 8px rgba(0,0,0,.08);
+--safe-bottom:env(safe-area-inset-bottom,0px)
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;-webkit-font-smoothing:antialiased}
+
+/* Header */
+.header{position:fixed;top:0;left:0;right:0;height:52px;background:var(--primary);color:#fff;display:flex;align-items:center;padding:0 12px;z-index:100;box-shadow:0 2px 6px rgba(74,144,217,.3)}
+.header-title{font-size:17px;font-weight:600;flex:1;text-align:center}
+.header-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:#fff;font-size:20px;cursor:pointer;border-radius:8px}
+.header-btn:active{background:rgba(255,255,255,.2)}
+
+/* View Toggle - 3 tabs */
+.view-toggle{position:fixed;top:52px;left:0;right:0;background:var(--card);display:flex;border-bottom:1px solid var(--border);z-index:99}
+.view-toggle button{flex:1;padding:10px 4px;border:none;background:transparent;color:var(--text-3);font-size:13px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+.view-toggle button.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+
+/* Filter Bar */
+.filter-bar{position:fixed;top:97px;left:0;right:0;background:var(--card);padding:8px 12px;display:flex;gap:8px;z-index:98;border-bottom:1px solid var(--border);overflow-x:auto;white-space:nowrap}
+.filter-bar::-webkit-scrollbar{display:none}
+.filter-chip{padding:5px 12px;border-radius:16px;border:1px solid var(--border);background:var(--card);color:var(--text-2);font-size:12px;cursor:pointer;flex-shrink:0;transition:all .2s}
+.filter-chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* Main Content */
+.main{padding-top:141px;padding-bottom:80px;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.main.no-filter{padding-top:97px}
+
+/* Card View */
+.card-list{padding:8px 12px}
+.apartment-card{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);cursor:pointer;position:relative;transition:transform .15s;overflow:hidden}
+.apartment-card:active{transform:scale(.98)}
+.card-photo-preview{width:100%;height:120px;border-radius:8px;overflow:hidden;margin-bottom:10px;display:flex;gap:2px}
+.card-photo-preview img{flex:1;height:100%;object-fit:cover;min-width:0}
+.card-photo-preview img:nth-child(n+4){display:none}
+.card-photo-preview .more-photos{flex:0 0 40px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);color:#fff;font-size:12px;border-radius:4px;margin-left:2px}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.card-name{font-size:16px;font-weight:600;color:var(--text)}
+.card-rent{font-size:18px;font-weight:700;color:var(--primary)}
+.card-rent small{font-size:11px;font-weight:400;color:var(--text-3)}
+.card-info{display:flex;flex-wrap:wrap;gap:4px 12px;margin-bottom:8px}
+.card-info span{font-size:12px;color:var(--text-2)}
+.card-info span::before{content:"·";margin-right:6px;color:var(--text-3)}
+.card-info span:first-child::before{display:none}
+.card-bottom{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border)}
+.card-score{display:flex;align-items:center;gap:4px}
+.score-badge{background:var(--primary-light);color:var(--primary);padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600}
+.card-tags{display:flex;gap:4px}
+.tag{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500}
+.tag-like{background:var(--success-bg);color:var(--success)}
+.tag-backup{background:var(--warning-bg);color:var(--warning)}
+.tag-exclude{background:var(--danger-bg);color:var(--danger)}
+.tag-revisit{background:#e6f7ff;color:#1890ff}
+.revisit-icon{position:absolute;top:10px;right:10px;font-size:14px}
+
+/* Empty State */
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-3)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state p{font-size:14px;margin-bottom:16px}
+.empty-state button{padding:8px 24px;background:var(--primary);color:#fff;border:none;border-radius:20px;font-size:14px;cursor:pointer}
+
+/* Table View */
+.table-wrap{overflow-x:auto;padding:8px;-webkit-overflow-scrolling:touch}
+.table-wrap table{border-collapse:collapse;font-size:12px;min-width:100%}
+.table-wrap th{position:sticky;top:0;background:var(--primary);color:#fff;padding:8px 10px;text-align:left;font-weight:500;white-space:nowrap;min-width:80px;z-index:5}
+.table-wrap th:first-child{position:sticky;left:0;z-index:6;min-width:90px}
+.table-wrap td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;color:var(--text-2)}
+.table-wrap td:first-child{position:sticky;left:0;background:var(--card);font-weight:600;color:var(--text);z-index:4}
+.table-wrap tr:active td{background:var(--primary-light)}
+.table-wrap .td-score{font-weight:600;color:var(--primary)}
+
+/* FAB */
+.fab{position:fixed;bottom:20px;right:20px;width:52px;height:52px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:28px;cursor:pointer;box-shadow:0 4px 12px rgba(74,144,217,.4);z-index:50;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.fab:active{transform:scale(.9)}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;display:none;opacity:0;transition:opacity .2s}
+.modal-overlay.show{display:block;opacity:1}
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:201;display:none;flex-direction:column;transform:translateY(100%);transition:transform .25s ease-out}
+.modal.show{display:flex;transform:translateY(0)}
+.modal-header{height:48px;background:var(--primary);color:#fff;display:flex;align-items:center;padding:0 12px;flex-shrink:0}
+.modal-header .back-btn{background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px}
+.modal-header h2{flex:1;font-size:16px;font-weight:600;text-align:center;margin-right:44px}
+.modal-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
+
+/* Form */
+.form-section{background:var(--card);border-radius:var(--radius);padding:12px;margin-bottom:10px}
+.form-section-title{font-size:14px;font-weight:600;color:var(--primary);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.form-group{margin-bottom:12px}
+.form-group:last-child{margin-bottom:0}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+.form-label{display:block;font-size:13px;color:var(--text-2);margin-bottom:4px}
+.form-input,.form-select,.form-textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);background:var(--card);outline:none;transition:border-color .2s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--primary)}
+.form-textarea{resize:vertical;min-height:60px;line-height:1.5}
+.form-input::placeholder,.form-textarea::placeholder{color:var(--text-3)}
+
+/* Star Rating */
+.stars{display:flex;gap:4px}
+.star{font-size:24px;color:#ddd;cursor:pointer;user-select:none;transition:color .1s}
+.star.active{color:var(--warning)}
+.score-label{font-size:12px;color:var(--text-3);margin-top:2px}
+
+/* Intention Selector */
+.intention-group{display:flex;gap:8px}
+.intention-btn{flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--card);text-align:center;font-size:13px;cursor:pointer;transition:all .2s}
+.intention-btn.active[data-val="like"]{background:var(--success-bg);border-color:var(--success);color:var(--success)}
+.intention-btn.active[data-val="backup"]{background:var(--warning-bg);border-color:var(--warning);color:var(--warning)}
+.intention-btn.active[data-val="exclude"]{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
+.intention-btn.active[data-val="pending"]{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+
+/* Toggle Switch */
+.toggle-switch{display:inline-flex;align-items:center;gap:8px}
+.switch{position:relative;width:44px;height:24px;background:#ccc;border-radius:12px;cursor:pointer;transition:background .2s}
+.switch.on{background:var(--success)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .2s}
+.switch.on::after{left:22px}
+
+/* Photo Upload */
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.photo-item{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg)}
+.photo-item img{width:100%;height:100%;object-fit:cover}
+.photo-delete{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.photo-add{aspect-ratio:1;border:1px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--text-3);background:var(--bg)}
+.photo-add span{font-size:12px;margin-top:2px}
+
+/* Subway Line Tags */
+.subway-lines-container{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.subway-line-tag{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;color:#fff;cursor:pointer}
+.subway-line-tag .remove-line{opacity:.7;font-size:14px;margin-left:2px}
+.subway-line-tag .remove-line:active{opacity:1}
+.subway-add-btn{padding:4px 10px;border:1px dashed var(--border);border-radius:12px;font-size:12px;color:var(--text-3);cursor:pointer;background:var(--bg)}
+
+/* Custom Fee Row */
+.custom-fee-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.custom-fee-row .fee-name{flex:1}
+.custom-fee-row .fee-amount{width:100px}
+.custom-fee-row .fee-delete{width:32px;height:32px;border:none;background:var(--danger-bg);color:var(--danger);border-radius:8px;font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.add-fee-btn{width:100%;padding:8px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-3);font-size:13px;cursor:pointer}
+.add-fee-btn:active{background:var(--bg)}
+
+/* Cost Formula Detail */
+.cost-summary{background:var(--primary-light);border-radius:8px;padding:10px;margin-top:8px}
+.cost-row{display:flex;justify-content:space-between;font-size:13px;padding:2px 0;color:var(--text-2)}
+.cost-formula{font-size:11px;color:var(--text-3);padding:1px 0 3px 8px;line-height:1.4}
+.cost-discount{color:var(--success)}
+.cost-total{font-size:16px;font-weight:700;color:var(--primary);border-top:1px dashed var(--primary);margin-top:6px;padding-top:6px}
+
+/* Detail View */
+.detail-card{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.detail-card h3{font-size:14px;color:var(--primary);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.detail-row{display:flex;padding:4px 0;font-size:13px}
+.detail-label{color:var(--text-3);width:90px;flex-shrink:0}
+.detail-value{color:var(--text);flex:1}
+.detail-photos{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+.detail-photos img{width:100%;border-radius:8px;aspect-ratio:4/3;object-fit:cover}
+.detail-notes{background:var(--primary-light);border-radius:8px;padding:10px;font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap}
+.detail-score-box{display:flex;justify-content:space-around;align-items:center}
+.score-item{text-align:center}
+.score-item .val{font-size:20px;font-weight:700}
+.score-item .lbl{font-size:11px;color:var(--text-3);margin-top:2px}
+.subway-tag-detail{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;color:#fff;margin-right:4px}
+
+/* Settings */
+.weight-row{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.weight-label{width:70px;font-size:13px;color:var(--text-2);flex-shrink:0}
+.weight-slider{flex:1;height:6px;background:var(--border);border-radius:3px;-webkit-appearance:none;appearance:none;outline:none}
+.weight-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--primary);cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.2)}
+.weight-value{width:36px;text-align:right;font-size:13px;font-weight:600;color:var(--primary)}
+.weight-total{text-align:center;padding:10px;font-size:13px;color:var(--text-2);border-radius:8px;background:var(--bg);margin-top:8px}
+.weight-total.ok{color:var(--success)}
+.weight-total.err{color:var(--danger)}
+
+/* Export Options */
+.export-btn{display:block;width:100%;padding:12px;text-align:left;border:1px solid var(--border);border-radius:8px;background:var(--card);margin-bottom:8px;cursor:pointer;font-size:14px;color:var(--text)}
+.export-btn:active{background:var(--bg)}
+.export-btn .desc{font-size:12px;color:var(--text-3);margin-top:2px}
+
+/* Action Buttons */
+.btn{padding:10px 16px;border:none;border-radius:8px;font-size:14px;cursor:pointer;text-align:center;transition:opacity .2s}
+.btn:active{opacity:.7}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-outline{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.btn-block{display:block;width:100%}
+
+/* Detail Actions */
+.detail-actions{display:flex;gap:8px;padding:0 12px 20px}
+.detail-actions .btn{flex:1}
+
+/* Toast */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;z-index:300;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* Confirm Dialog */
+.confirm-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:400;display:none;align-items:center;justify-content:center}
+.confirm-overlay.show{display:flex}
+.confirm-box{background:var(--card);border-radius:12px;padding:20px;width:80%;max-width:300px;text-align:center}
+.confirm-box p{margin-bottom:16px;font-size:14px}
+.confirm-box .btns{display:flex;gap:8px}
+.confirm-box .btns .btn{flex:1}
+
+/* Checklist */
+.checklist-container{padding:8px 12px}
+.checklist-summary{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);text-align:center}
+.checklist-progress-bar{width:100%;height:8px;background:var(--bg);border-radius:4px;margin-top:8px;overflow:hidden}
+.checklist-progress-fill{height:100%;background:var(--success);border-radius:4px;transition:width .3s}
+.checklist-group{margin-bottom:12px}
+.checklist-group-header{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--primary-light);border-radius:8px;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--primary)}
+.checklist-group-count{margin-left:auto;font-size:11px;color:var(--text-3);font-weight:400}
+.checklist-item{background:var(--card);border-radius:var(--radius);padding:10px 12px;margin-bottom:6px;box-shadow:var(--shadow);display:flex;align-items:flex-start;gap:8px;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative}
+.checklist-checkbox{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;margin-top:1px;transition:all .2s}
+.checklist-checkbox.checked{background:var(--success);border-color:var(--success)}
+.checklist-content{flex:1;min-width:0}
+.checklist-title-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.checklist-title{font-size:13px;font-weight:500;color:var(--text);word-break:break-word}
+.checklist-drag-handle{width:22px;flex-shrink:0;cursor:grab;color:var(--text-3);display:flex;align-items:center;justify-content:center;font-size:18px;padding-top:1px;touch-action:none;user-select:none;-webkit-user-select:none;line-height:1}
+.checklist-drag-handle:active{cursor:grabbing}
+.checklist-item.checklist-dragging{z-index:10;box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:.96}
+.checklist-item.checklist-drag-ghost{background:var(--primary-light)}
+.checklist-qty{font-size:12px;font-weight:600;color:var(--primary);flex-shrink:0}
+.checklist-transport{font-size:10px;padding:1px 6px;border-radius:8px;font-weight:500;flex-shrink:0;white-space:nowrap}
+.checklist-transport[data-t="行李携带"]{background:#e6f7ff;color:#1890ff}
+.checklist-transport[data-t="当地购买"]{background:var(--success-bg);color:var(--success)}
+.checklist-transport[data-t="皆可"]{background:var(--warning-bg);color:var(--warning)}
+.checklist-notes{font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.4}
+.checklist-delete{width:26px;height:26px;border:none;background:transparent;color:var(--text-3);font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.checklist-delete:active{background:var(--danger-bg);color:var(--danger)}
+.checklist-add-form{background:var(--card);border-radius:var(--radius);padding:12px;margin-bottom:8px;box-shadow:var(--shadow)}
+.checklist-category-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.checklist-cat-chip{padding:3px 10px;border-radius:12px;font-size:11px;border:1px solid var(--border);background:var(--card);color:var(--text-2);cursor:pointer}
+.checklist-cat-chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.checklist-edit-btn{width:26px;height:26px;border:none;background:transparent;color:var(--text-3);font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.checklist-edit-btn:active{background:var(--primary-light);color:var(--primary)}
+.checklist-edit-form{background:var(--primary-light);border-radius:8px;padding:10px;margin-bottom:6px}
+.checklist-edit-form .form-row{margin-bottom:8px}
+.checklist-edit-form .form-group{margin-bottom:8px}
+.checklist-edit-form .form-input,.checklist-edit-form .form-select{padding:6px 8px;font-size:13px}
+.checklist-edit-form .form-label{font-size:11px;margin-bottom:2px}
+.checklist-item-actions{display:flex;gap:4px;flex-shrink:0;align-items:flex-start}
+
+/* Responsive */
+@media(min-width:768px){
+.main{max-width:600px;margin:0 auto;left:0;right:0}
+.header,.view-toggle,.filter-bar,.fab{max-width:600px;margin:0 auto;left:0;right:0}
+.modal{max-width:600px;margin:0 auto}
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+<button class="header-btn" onclick="openSettings()">⚙</button>
+<span class="header-title">看房对比助手</span>
+<button class="header-btn" onclick="openExport()">↗</button>
+</div>
+
+<!-- View Toggle - 3 tabs -->
+<div class="view-toggle">
+<button class="active" id="btnCardView" onclick="switchView('card')">房源对比</button>
+<button id="btnTableView" onclick="switchView('table')">对比表格</button>
+<button id="btnChecklistView" onclick="switchView('checklist')">准备清单</button>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar" id="filterBar">
+<div class="filter-chip active" data-filter="all" onclick="setFilter('all')">全部</div>
+<div class="filter-chip" data-filter="like" onclick="setFilter('like')">❤ 喜欢</div>
+<div class="filter-chip" data-filter="backup" onclick="setFilter('backup')">★ 备选</div>
+<div class="filter-chip" data-filter="exclude" onclick="setFilter('exclude')">✕ 排除</div>
+<div class="filter-chip" data-filter="revisit" onclick="setFilter('revisit')">⚑ 需复看</div>
+<div class="filter-chip" data-filter="pending" onclick="setFilter('pending')">○ 待定</div>
+</div>
+
+<!-- Main Content -->
+<div class="main" id="mainContent"></div>
+
+<!-- FAB -->
+<button class="fab" onclick="onFabClick()">+</button>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Form Modal -->
+<div class="modal" id="formModal">
+<div class="modal-header">
+<button class="back-btn" onclick="closeForm()">‹</button>
+<h2 id="formTitle">添加房源</h2>
+</div>
+<div class="modal-body" id="formBody"></div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal" id="detailModal">
+<div class="modal-header">
+<button class="back-btn" onclick="closeDetail()">‹</button>
+<h2>房源详情</h2>
+</div>
+<div class="modal-body" id="detailBody"></div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal" id="settingsModal">
+<div class="modal-header">
+<button class="back-btn" onclick="closeSettings()">‹</button>
+<h2>评分权重设置</h2>
+</div>
+<div class="modal-body" id="settingsBody"></div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal" id="exportModal">
+<div class="modal-header">
+<button class="back-btn" onclick="closeExport()">‹</button>
+<h2>导出与分享</h2>
+</div>
+<div class="modal-body" id="exportBody"></div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirmOverlay">
+<div class="confirm-box">
+<p id="confirmText">确认操作？</p>
+<div class="btns">
+<button class="btn btn-outline" onclick="closeConfirm()">取消</button>
+<button class="btn btn-danger" id="confirmOkBtn">确定</button>
+</div>
+</div>
+</div>
+
+<script>
+// ============ Data Layer ============
+const STORAGE_KEY = 'apartment_compare_data_v2';
+const WEIGHT_KEY = 'apartment_compare_weights_v1';
+const CHECKLIST_KEY = 'apartment_compare_checklist_v1';
+
+let apartments = [];
+let weights = {price:20, location:20, condition:20, commute:20, surrounding:20};
+let checklist = [];
+let currentView = 'card';
+let currentFilter = 'all';
+let editingId = null;
+let tempPhotos = [];
+let tempScores = {price:3, location:3, condition:3, commute:3, surrounding:3};
+let tempIntention = 'pending';
+let tempRevisit = false;
+let tempSubwayLines = [];
+let tempCustomFees = [];
+let editingChecklistId = null;
+
+// Subway line colors (Guangzhou)
+const SUBWAY_LINES = [
+{n:'1号线',c:'#FFE100',t:'#333'},{n:'2号线',c:'#0072B5',t:'#fff'},{n:'3号线',c:'#F5A623',t:'#fff'},
+{n:'4号线',c:'#00843D',t:'#fff'},{n:'5号线',c:'#B71315',t:'#fff'},{n:'6号线',c:'#BD9D44',t:'#fff'},
+{n:'7号线',c:'#86C440',t:'#fff'},{n:'8号线',c:'#00843D',t:'#fff'},{n:'9号线',c:'#7AC143',t:'#fff'},
+{n:'13号线',c:'#5B3013',t:'#fff'},{n:'14号线',c:'#8E5572',t:'#fff'},{n:'18号线',c:'#0057B8',t:'#fff'},
+{n:'21号线',c:'#BD9D44',t:'#fff'},{n:'22号线',c:'#B71315',t:'#fff'},{n:'APM线',c:'#4A90D9',t:'#fff'}
+];
+function getLineColor(name){const l=SUBWAY_LINES.find(s=>s.n===name);return l?{bg:l.c,t:l.t}:{bg:'#999',t:'#fff'}}
+
+function loadData(){
+try{
+const d = localStorage.getItem(STORAGE_KEY);
+if(d) apartments = JSON.parse(d);
+const w = localStorage.getItem(WEIGHT_KEY);
+if(w) weights = JSON.parse(w);
+const cl = localStorage.getItem(CHECKLIST_KEY);
+if(cl) checklist = JSON.parse(cl);
+// Migrate transport values: 行李→行李携带, 当地→当地购买
+let migrated = false;
+checklist.forEach(c=>{
+if(c.transport==='行李'){c.transport='行李携带';migrated=true}
+if(c.transport==='当地'){c.transport='当地购买';migrated=true}
+});
+if(migrated) saveData();
+// Migrate old data
+const old = localStorage.getItem('apartment_compare_data_v1');
+if(old && apartments.length===0){
+apartments = JSON.parse(old);
+saveData();
+localStorage.removeItem('apartment_compare_data_v1');
+}
+}catch(e){console.error('Load error:',e)}
+initDefaultChecklist();
+}
+
+function saveData(){
+try{
+localStorage.setItem(STORAGE_KEY, JSON.stringify(apartments));
+localStorage.setItem(WEIGHT_KEY, JSON.stringify(weights));
+localStorage.setItem(CHECKLIST_KEY, JSON.stringify(checklist));
+}catch(e){console.error('Save error:',e)}
+}
+
+function genId(){return Date.now().toString(36)+Math.random().toString(36).substr(2,5)}
+
+// ============ Default Checklist Data ============
+const CHECKLIST_CATEGORIES = ['证件文件','电子设备','衣物','洗漱护理','床上用品','厨房日用','家居电器','药品健康','其他'];
+const DEFAULT_CHECKLIST = [
+// 证件文件
+{name:'身份证',transport:'行李携带',qty:1,notes:'原件+复印件2-3份',cat:'证件文件'},
+{name:'银行卡',transport:'行李携带',qty:2,notes:'至少2张不同银行',cat:'证件文件'},
+{name:'毕业证/学位证',transport:'行李携带',qty:1,notes:'原件+复印件，入职可能需要',cat:'证件文件'},
+{name:'离职证明',transport:'行李携带',qty:1,notes:'如有上一份工作',cat:'证件文件'},
+{name:'1寸/2寸证件照',transport:'行李携带',qty:10,notes:'各8-10张，红底蓝底白底',cat:'证件文件'},
+{name:'体检报告',transport:'行李携带',qty:1,notes:'如入职要求',cat:'证件文件'},
+{name:'合同/offer文件',transport:'行李携带',qty:1,notes:'打印或电子版备份',cat:'证件文件'},
+{name:'驾驶证（电子版）',transport:'行李携带',qty:1,notes:'广州认可交管12123电子驾照，无需带实体证；确保APP已申领',cat:'证件文件'},
+{name:'社保公积金跨省转移（线上办理）',transport:'当地购买',qty:1,notes:'到广州新公司参保后，通过掌上12333 APP发起社保转移；公积金通过"广州住房公积金"公众号→异地账户转入。全程线上，无需纸质转移单',cat:'证件文件'},
+{name:'就业创业证（就业失业登记）',transport:'当地购买',qty:1,notes:'广东可线上办理，通过粤省事/粤就业小程序登记，通常由新公司HR协助办理，无需从上海带',cat:'证件文件'},
+// 电子设备
+{name:'手机+充电器+数据线',transport:'行李携带',qty:1,notes:'',cat:'电子设备'},
+{name:'笔记本电脑+充电器',transport:'行李携带',qty:1,notes:'工作/学习用',cat:'电子设备'},
+{name:'充电宝',transport:'行李携带',qty:1,notes:'≤100Wh可带上飞机/高铁',cat:'电子设备'},
+{name:'耳机',transport:'行李携带',qty:1,notes:'',cat:'电子设备'},
+{name:'U盘/移动硬盘',transport:'行李携带',qty:1,notes:'备份重要资料',cat:'电子设备'},
+{name:'插线板',transport:'皆可',qty:1,notes:'带1个过渡用',cat:'电子设备'},
+{name:'读卡器',transport:'行李携带',qty:1,notes:'如需要',cat:'电子设备'},
+// 衣物
+{name:'夏装（T恤/短裤/裙）',transport:'行李携带',qty:8,notes:'多备，广州4-11月都穿',cat:'衣物'},
+{name:'薄外套/衬衫',transport:'行李携带',qty:3,notes:'办公室空调冷、春秋穿',cat:'衣物'},
+{name:'秋装长袖',transport:'行李携带',qty:3,notes:'2-3套',cat:'衣物'},
+{name:'冬装（薄毛衣/卫衣）',transport:'行李携带',qty:2,notes:'1-2件够过冬，无需厚羽绒服',cat:'衣物'},
+{name:'防风外套',transport:'行李携带',qty:1,notes:'应对台风/下雨',cat:'衣物'},
+{name:'内裤',transport:'行李携带',qty:6,notes:'条',cat:'衣物'},
+{name:'袜子',transport:'行李携带',qty:6,notes:'双',cat:'衣物'},
+{name:'睡衣',transport:'行李携带',qty:2,notes:'',cat:'衣物'},
+{name:'工作正装',transport:'行李携带',qty:1,notes:'视公司着装要求',cat:'衣物'},
+{name:'皮鞋/球鞋/运动鞋',transport:'行李携带',qty:3,notes:'凉鞋雨天实用',cat:'衣物'},
+{name:'拖鞋',transport:'行李携带',qty:2,notes:'居家+浴室各一双',cat:'衣物'},
+{name:'折叠伞',transport:'行李携带',qty:1,notes:'广州多雨必备',cat:'衣物'},
+// 洗漱护理
+{name:'电动牙刷&牙膏',transport:'行李携带',qty:1,notes:'过渡用，到当地再补',cat:'洗漱护理'},
+{name:'毛巾/浴巾',transport:'行李携带',qty:2,notes:'条，2套换洗',cat:'洗漱护理'},
+{name:'洗面奶/乳液/爽肤水',transport:'行李携带',qty:1,notes:'旅行装过渡',cat:'洗漱护理'},
+{name:'洗发水/沐浴露',transport:'当地购买',qty:1,notes:'体积大，当地买',cat:'洗漱护理'},
+{name:'剃须刀/女性护理用品',transport:'当地购买',qty:1,notes:'个人用品',cat:'洗漱护理'},
+{name:'梳子/镜子',transport:'皆可',qty:1,notes:'',cat:'洗漱护理'},
+{name:'指甲剪/小剪刀',transport:'行李携带',qty:1,notes:'',cat:'洗漱护理'},
+{name:'防晒霜',transport:'行李携带',qty:1,notes:'广州紫外线强',cat:'洗漱护理'},
+{name:'驱蚊液/花露水',transport:'当地购买',qty:1,notes:'夏季必备，当地买方便',cat:'洗漱护理'},
+// 床上用品
+{name:'床单/被套',transport:'皆可',qty:1,notes:'看租房是否配，建议先带一套',cat:'床上用品'},
+{name:'床上四件套（1.5m×2m）',transport:'皆可',qty:1,notes:'含床单、被套、枕套×2',cat:'床上用品'},
+{name:'枕头',transport:'皆可',qty:1,notes:'体积大可当地买',cat:'床上用品'},
+{name:'夏凉被/薄被',transport:'皆可',qty:1,notes:'广州大部分时间用薄被',cat:'床上用品'},
+{name:'防潮垫/床笠',transport:'当地购买',qty:1,notes:'回南天防潮用',cat:'床上用品'},
+// 厨房日用
+{name:'筷子',transport:'行李携带',qty:1,notes:'',cat:'厨房日用'},
+{name:'拖把/扫帚/簸箕',transport:'当地购买',qty:1,notes:'',cat:'厨房日用'},
+{name:'垃圾桶+垃圾袋',transport:'当地购买',qty:1,notes:'',cat:'厨房日用'},
+{name:'洗衣液/洗衣粉',transport:'当地购买',qty:1,notes:'',cat:'厨房日用'},
+{name:'洗洁精',transport:'当地购买',qty:1,notes:'',cat:'厨房日用'},
+{name:'抽纸/卷纸',transport:'当地购买',qty:1,notes:'过渡带一包',cat:'厨房日用'},
+{name:'衣架',transport:'当地购买',qty:1,notes:'',cat:'厨房日用'},
+{name:'收纳箱/收纳袋',transport:'当地购买',qty:1,notes:'',cat:'厨房日用'},
+{name:'防潮除湿盒',transport:'当地购买',qty:3,notes:'回南天必备',cat:'厨房日用'},
+// 家居电器
+{name:'除湿机',transport:'当地购买',qty:1,notes:'广州回南天强烈推荐',cat:'家居电器'},
+{name:'小风扇/USB风扇',transport:'皆可',qty:1,notes:'过渡用',cat:'家居电器'},
+{name:'电吹风',transport:'当地购买',qty:1,notes:'个人用品',cat:'家居电器'},
+{name:'挂烫机',transport:'皆可',qty:1,notes:'衣物除皱',cat:'家居电器'},
+// 药品健康
+{name:'感冒药',transport:'行李携带',qty:1,notes:'旅行装过渡',cat:'药品健康'},
+{name:'肠胃药',transport:'行李携带',qty:1,notes:'换水土易闹肚子',cat:'药品健康'},
+{name:'创可贴/碘伏',transport:'行李携带',qty:1,notes:'',cat:'药品健康'},
+{name:'过敏药',transport:'行李携带',qty:1,notes:'如有需要',cat:'药品健康'},
+{name:'体温计',transport:'行李携带',qty:1,notes:'',cat:'药品健康'},
+{name:'常用处方药',transport:'行李携带',qty:1,notes:'足量',cat:'药品健康'},
+{name:'脚癣药',transport:'行李携带',qty:1,notes:'个人常备',cat:'药品健康'},
+{name:'益生菌',transport:'行李携带',qty:1,notes:'肠胃调理',cat:'药品健康'},
+// 其他
+{name:'行李箱/双肩包',transport:'行李携带',qty:1,notes:'本身就是装具',cat:'其他'},
+{name:'钱包+少量现金',transport:'行李携带',qty:1,notes:'虽移动支付普及，备点现金',cat:'其他'},
+{name:'钥匙扣',transport:'行李携带',qty:1,notes:'',cat:'其他'},
+{name:'小工具包（螺丝刀等）',transport:'当地购买',qty:1,notes:'',cat:'其他'},
+{name:'日常背包',transport:'行李携带',qty:1,notes:'通勤/出门用',cat:'其他'}
+];
+
+function initDefaultChecklist(){
+if(checklist.length === 0){
+DEFAULT_CHECKLIST.forEach((item, i)=>{
+checklist.push({
+id: 'default_' + i,
+title: item.qty > 1 ? item.name + ' ×' + item.qty : item.name,
+name: item.name,
+done: false,
+category: item.cat,
+transport: item.transport,
+quantity: item.qty,
+notes: item.notes,
+order: i,
+createdAt: Date.now() + i
+});
+});
+saveData();
+}
+}
+
+function getTransportIcon(t){
+const map = {'行李携带':'🧳','当地购买':'🛒','皆可':'⚖️'};
+return map[t] || '';
+}
+
+// ============ Utility Cost Formula ============
+function calcUtilityCost(apt){
+const area = parseFloat(apt.area)||0;
+const residents = parseInt(apt.residentCount)||1;
+const elecPrice = parseFloat(apt.electricityUnitPrice)||0.62;
+// Electricity: area-based (lighting+AC for space) + per-person (devices+bedroom AC)
+const elecKwh = area * 2 + residents * 40; // 度/月
+const elecCost = elecKwh * elecPrice;
+// Water: base + per-person
+const waterTons = residents * 3 + 2; // 吨/月
+const waterCost = waterTons * 5; // 5元/吨
+// Gas: per-person
+const gasM3 = residents * 8; // m³/月
+const gasCost = gasM3 * 3.5; // 3.5元/m³
+const monthly = elecCost + waterCost + gasCost;
+return {
+electricity:{kwh:elecKwh, price:elecPrice, cost:elecCost},
+water:{tons:waterTons, price:5, cost:waterCost},
+gas:{m3:gasM3, price:3.5, cost:gasCost},
+monthly: monthly,
+detail: `电费:(${area}㎡×2度/㎡+${residents}人×40度/人)×${elecPrice}元/度=${elecKwh.toFixed(0)}度×${elecPrice}元/度=${elecCost.toFixed(1)}元 | 水费:(${residents}人×3吨/人+2吨)×5元/吨=${waterTons}吨×5元/吨=${waterCost}元 | 燃气:${residents}人×8m³×3.5元/m³=${gasM3}m³×3.5元/m³=${gasCost}元`
+};
+}
+
+// ============ Score Calculation ============
+function calcTotalScore(apt){
+const s = apt.scores || {price:3,location:3,condition:3,commute:3,surrounding:3};
+const total = (s.price*weights.price + s.location*weights.location + s.condition*weights.condition + s.commute*weights.commute + s.surrounding*weights.surrounding) / 100;
+return Math.round(total * 10) / 10;
+}
+
+function calcAnnualCost(apt){
+const rent = parseFloat(apt.rent)||0;
+const property = parseFloat(apt.propertyFee)||0;
+const commute = parseFloat(apt.commuteCost)||0;
+const tax = parseFloat(apt.tax)||0;
+const utility = calcUtilityCost(apt);
+const customFees = apt.customFees || [];
+const customTotal = customFees.reduce((sum,f)=>sum + (parseFloat(f.amount)||0), 0);
+const discount = parseFloat(apt.discount)||0;
+const monthlyTotal = rent + property + commute + tax + utility.monthly + customTotal - discount;
+return {
+rent: rent*12,
+property: property*12,
+commute: commute*12,
+tax: tax*12,
+utility: utility.monthly*12,
+utilityMonthly: utility.monthly,
+utilityDetail: utility,
+custom: customTotal*12,
+customMonthly: customTotal,
+discount: discount*12,
+total: monthlyTotal*12,
+monthlyTotal: monthlyTotal
+};
+}
+
+// ============ Rendering ============
+function render(){
+const main = document.getElementById('mainContent');
+const filterBar = document.getElementById('filterBar');
+const fab = document.querySelector('.fab');
+
+if(currentView === 'checklist'){
+filterBar.style.display = 'none';
+main.classList.add('no-filter');
+fab.textContent = '+';
+renderChecklist();
+return;
+}
+
+filterBar.style.display = 'flex';
+main.classList.remove('no-filter');
+fab.textContent = '+';
+
+const filtered = getFiltered();
+if(filtered.length === 0){
+main.innerHTML = `<div class="empty-state">
+<div class="icon">🏠</div>
+<p>${apartments.length===0?'还没有添加任何房源<br>点击右下角 + 添加第一套房子':'当前筛选条件下没有房源'}</p>
+${apartments.length===0?'<button onclick="openForm()">添加房源</button>':''}
+</div>`;
+return;
+}
+if(currentView === 'card'){
+renderCardView(filtered, main);
+}else{
+renderTableView(filtered, main);
+}
+}
+
+function getFiltered(){
+if(currentFilter === 'all') return apartments;
+if(currentFilter === 'revisit') return apartments.filter(a=>a.needRevisit);
+return apartments.filter(a=>(a.intention||'pending')===currentFilter);
+}
+
+function renderCardView(list, container){
+const sorted = [...list].sort((a,b)=>calcTotalScore(b)-calcTotalScore(a));
+let html = '<div class="card-list">';
+sorted.forEach(apt=>{
+const score = calcTotalScore(apt);
+const intention = apt.intention || 'pending';
+const intentionMap = {like:{t:'喜欢',c:'tag-like'},backup:{t:'备选',c:'tag-backup'},exclude:{t:'排除',c:'tag-exclude'},pending:{t:'待定',c:''}};
+const intInfo = intentionMap[intention];
+const photos = apt.photos || [];
+let photoHtml = '';
+if(photos.length > 0){
+photoHtml = `<div class="card-photo-preview">`;
+const showCount = Math.min(photos.length, 3);
+for(let i=0; i<showCount; i++){
+photoHtml += `<img src="${photos[i]}" onclick="event.stopPropagation();viewPhoto('${photos[i].replace(/'/g,"\\'")}')">`;
+}
+if(photos.length > 3){
+photoHtml += `<div class="more-photos" onclick="event.stopPropagation();openDetail('${apt.id}')">+${photos.length-3}</div>`;
+}
+photoHtml += `</div>`;
+}
+// Subway line tags
+let subwayHtml = '';
+if(apt.subwayLines && apt.subwayLines.length > 0){
+subwayHtml = apt.subwayLines.map(line=>{
+const lc = getLineColor(line);
+return `<span class="subway-tag-detail" style="background:${lc.bg};color:${lc.t}">${line}</span>`;
+}).join('');
+}
+html += `<div class="apartment-card" onclick="openDetail('${apt.id}')">
+${apt.needRevisit?'<div class="revisit-icon">⚑</div>':''}
+${photoHtml}
+<div class="card-header">
+<span class="card-name">${esc(apt.name||'未命名')}</span>
+<span class="card-rent">${apt.rent||'-'}<small>元/月</small></span>
+</div>
+<div class="card-info">
+<span>${esc(apt.layout||'-')} ${esc(apt.area||'-')}㎡</span>
+<span>${esc(apt.floor||'-')}层 ${esc(apt.orientation||'-')}</span>
+<span>通勤${esc(apt.commuteTime||'-')}min${apt.needTransfer?' 换乘':''}</span>
+</div>
+${subwayHtml?`<div style="margin-bottom:6px">${subwayHtml}</div>`:''}
+<div class="card-bottom">
+<div class="card-score">
+<span class="score-badge">综合 ${score}</span>
+</div>
+<div class="card-tags">
+${intInfo.c?`<span class="tag ${intInfo.c}">${intInfo.t}</span>`:`<span class="tag" style="color:var(--text-3)">待定</span>`}
+${apt.needRevisit?'<span class="tag tag-revisit">需复看</span>':''}
+</div>
+</div>
+</div>`;
+});
+html += '</div>';
+container.innerHTML = html;
+}
+
+function renderTableView(list, container){
+const sorted = [...list].sort((a,b)=>calcTotalScore(b)-calcTotalScore(a));
+let html = '<div class="table-wrap"><table><thead><tr>';
+const headers = ['小区名称','月租金','面积','户型','楼层','朝向','地铁线路','地铁距离','通勤时间','换乘','装修','采光','噪音','综合评分','年度总费用','意向'];
+headers.forEach(h=> html += `<th>${h}</th>`);
+html += '</tr></thead><tbody>';
+sorted.forEach(apt=>{
+const score = calcTotalScore(apt);
+const cost = calcAnnualCost(apt);
+const intention = apt.intention || 'pending';
+const intMap = {like:'喜欢',backup:'备选',exclude:'排除',pending:'待定'};
+const subwayStr = (apt.subwayLines||[]).join('+') || '-';
+html += `<tr onclick="openDetail('${apt.id}')">
+<td>${esc(apt.name||'-')}</td>
+<td>${apt.rent||'-'}</td>
+<td>${apt.area||'-'}㎡</td>
+<td>${esc(apt.layout||'-')}</td>
+<td>${esc(apt.floor||'-')}</td>
+<td>${esc(apt.orientation||'-')}</td>
+<td>${esc(subwayStr)}</td>
+<td>${esc(apt.metroDistance||'-')}</td>
+<td>${esc(apt.commuteTime||'-')}min</td>
+<td>${apt.needTransfer?'是':'否'}</td>
+<td>${esc(apt.decoration||'-')}</td>
+<td>${esc(apt.lighting||'-')}</td>
+<td>${esc(apt.noise||'-')}</td>
+<td class="td-score">${score}</td>
+<td>${cost.total>0?(cost.total/10000).toFixed(2)+'万':'-'}</td>
+<td>${intMap[intention]}</td>
+</tr>`;
+});
+html += '</tbody></table></div>';
+container.innerHTML = html;
+}
+
+// ============ Form ============
+function openForm(id){
+editingId = id || null;
+const apt = id ? apartments.find(a=>a.id===id) : null;
+tempPhotos = apt ? [...(apt.photos||[])] : [];
+tempScores = apt ? {...apt.scores} : {price:3,location:3,condition:3,commute:3,surrounding:3};
+tempIntention = apt ? (apt.intention||'pending') : 'pending';
+tempRevisit = apt ? !!apt.needRevisit : false;
+tempSubwayLines = apt ? [...(apt.subwayLines||[])] : [];
+tempCustomFees = apt ? [...(apt.customFees||[])] : [];
+document.getElementById('formTitle').textContent = id ? '编辑房源' : '添加房源';
+renderForm(apt);
+document.getElementById('formModal').classList.add('show');
+}
+
+function renderForm(apt){
+const v = apt || {};
+const body = document.getElementById('formBody');
+body.innerHTML = `
+<div class="form-section">
+<div class="form-section-title">📋 基础信息</div>
+<div class="form-group">
+<label class="form-label">📷 照片记录</label>
+<div class="photo-grid" id="photoGrid"></div>
+<input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="handlePhotoUpload(event)">
+</div>
+<div class="form-group">
+<label class="form-label">小区名称 *</label>
+<input class="form-input" id="f_name" placeholder="如：珠江新城某小区" value="${esc(v.name||'')}">
+</div>
+<div class="form-row">
+<div class="form-group">
+<label class="form-label">月租金（元）</label>
+<input class="form-input" id="f_rent" type="number" placeholder="3500" value="${v.rent||''}">
+</div>
+<div class="form-group">
+<label class="form-label">面积（㎡）</label>
+<input class="form-input" id="f_area" type="number" placeholder="60" value="${v.area||''}">
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label class="form-label">户型</label>
+<select class="form-select" id="f_layout">
+${['一居室','一室一厅','两室一厅','两室两厅','三室一厅','三室两厅','四室及以上','单身公寓','其他'].map(o=>`<option ${v.layout===o?'selected':''}>${o}</option>`).join('')}
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">楼层</label>
+<input class="form-input" id="f_floor" type="number" placeholder="12" value="${v.floor||''}">
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">朝向</label>
+<select class="form-select" id="f_orientation">
+${['南','东南','东','东北','北','西北','西','西南','南北通透'].map(o=>`<option ${v.orientation===o?'selected':''}>${o}</option>`).join('')}
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">详细地址</label>
+<input class="form-input" id="f_address" placeholder="如：天河区珠江新城花城大道" value="${esc(v.address||'')}">
+</div>
+</div>
+
+<div class="form-section">
+<div class="form-section-title">🚇 周边配套</div>
+<div class="form-group">
+<label class="form-label">地铁站距离</label>
+<input class="form-input" id="f_metroDistance" placeholder="如：步行5分钟" value="${esc(v.metroDistance||'')}">
+</div>
+<div class="form-group">
+<label class="form-label">超市/菜市场</label>
+<input class="form-input" id="f_market" placeholder="如：楼下有沃尔玛" value="${esc(v.market||'')}">
+</div>
+<div class="form-group">
+<label class="form-label">餐饮</label>
+<input class="form-input" id="f_restaurant" placeholder="如：周边餐饮丰富" value="${esc(v.restaurant||'')}">
+</div>
+<div class="form-group">
+<label class="form-label">医院</label>
+<input class="form-input" id="f_hospital" placeholder="如：2km内有三甲医院" value="${esc(v.hospital||'')}">
+</div>
+</div>
+
+<div class="form-section">
+<div class="form-section-title">🏠 房屋状况</div>
+<div class="form-group">
+<label class="form-label">装修情况</label>
+<select class="form-select" id="f_decoration">
+${['精装修','简装修','毛坯','需要翻新'].map(o=>`<option ${v.decoration===o?'selected':''}>${o}</option>`).join('')}
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">家具家电</label>
+<textarea class="form-textarea" id="f_furniture" placeholder="如：空调、冰箱、洗衣机、热水器齐全">${esc(v.furniture||'')}</textarea>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label class="form-label">采光通风</label>
+<select class="form-select" id="f_lighting">
+${['很好','较好','一般','较差'].map(o=>`<option ${v.lighting===o?'selected':''}>${o}</option>`).join('')}
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">噪音情况</label>
+<select class="form-select" id="f_noise">
+${['很安静','较安静','一般','较吵'].map(o=>`<option ${v.noise===o?'selected':''}>${o}</option>`).join('')}
+</select>
+</div>
+</div>
+</div>
+
+<div class="form-section">
+<div class="form-section-title">🚌 通勤信息</div>
+<div class="form-row">
+<div class="form-group">
+<label class="form-label">通勤时间（分钟）</label>
+<input class="form-input" id="f_commuteTime" type="number" placeholder="30" value="${v.commuteTime||''}">
+</div>
+<div class="form-group">
+<label class="form-label">交通方式</label>
+<select class="form-select" id="f_commuteMethod" onchange="toggleSubwaySection()">
+${['地铁','公交','地铁+公交','骑行','步行','开车','打车'].map(o=>`<option ${v.commuteMethod===o?'selected':''}>${o}</option>`).join('')}
+</select>
+</div>
+</div>
+<div class="form-group" id="subwaySection">
+<label class="form-label">地铁线路（可多选，表示换乘）</label>
+<div class="subway-lines-container" id="subwayLinesContainer"></div>
+<select class="form-select" id="subwayLineSelect" style="margin-top:6px">
+<option value="">选择线路添加...</option>
+${SUBWAY_LINES.map(l=>`<option value="${l.n}">${l.n}</option>`).join('')}
+</select>
+</div>
+<div class="form-group">
+<div class="toggle-switch">
+<div class="switch ${v.needTransfer?'on':''}" id="transferSwitch" onclick="toggleTransfer()"></div>
+<span style="font-size:13px;color:var(--text-2)">需要换乘（多线路）</span>
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">月通勤费用（元）</label>
+<input class="form-input" id="f_commuteCost" type="number" placeholder="200" value="${v.commuteCost||''}">
+</div>
+</div>
+
+<div class="form-section">
+<div class="form-section-title">⭐ 评分（1-5星）</div>
+<div id="scoreContainer"></div>
+</div>
+
+<div class="form-section">
+<div class="form-section-title">💰 费用估算</div>
+<div class="form-group">
+<label class="form-label">入住人数</label>
+<select class="form-select" id="f_residentCount" onchange="updateCostPreview()">
+${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${parseInt(v.residentCount)===n?'selected':''}>${n}人</option>`).join('')}
+</select>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label class="form-label">月物业费（元）</label>
+<input class="form-input" id="f_propertyFee" type="number" placeholder="150" value="${v.propertyFee||''}">
+</div>
+<div class="form-group">
+<label class="form-label">月税费（元）</label>
+<input class="form-input" id="f_tax" type="number" placeholder="0" value="${v.tax||''}">
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">电费单价（元/度）</label>
+<input class="form-input" id="f_electricityUnitPrice" type="number" step="0.01" placeholder="0.62" value="${v.electricityUnitPrice||''}">
+</div>
+<div class="form-group">
+<label class="form-label">其他月费用（自定义）</label>
+<div id="customFeesContainer"></div>
+<button class="add-fee-btn" onclick="addCustomFeeRow()">+ 添加费用项</button>
+</div>
+<div class="form-group">
+<label class="form-label">月折扣/减免（元）</label>
+<input class="form-input" id="f_discount" type="number" placeholder="如：房东优惠200元" value="${v.discount||''}">
+</div>
+<div id="costPreview"></div>
+</div>
+
+<div class="form-section">
+<div class="form-section-title">📝 探访笔记</div>
+<div class="form-group">
+<textarea class="form-textarea" id="f_notes" placeholder="记录看房时的即时感受、优缺点、房东态度等..." style="min-height:100px">${esc(v.notes||'')}</textarea>
+</div>
+</div>
+
+<div class="form-section">
+<div class="form-section-title">🏷 状态设置</div>
+<div class="form-group">
+<label class="form-label">意向标记</label>
+<div class="intention-group" id="intentionGroup">
+<div class="intention-btn ${tempIntention==='pending'?'active':''}" data-val="pending" onclick="setIntention('pending')">○ 待定</div>
+<div class="intention-btn ${tempIntention==='like'?'active':''}" data-val="like" onclick="setIntention('like')">❤ 喜欢</div>
+<div class="intention-btn ${tempIntention==='backup'?'active':''}" data-val="backup" onclick="setIntention('backup')">★ 备选</div>
+<div class="intention-btn ${tempIntention==='exclude'?'active':''}" data-val="exclude" onclick="setIntention('exclude')">✕ 排除</div>
+</div>
+</div>
+<div class="form-group">
+<div class="toggle-switch">
+<div class="switch ${tempRevisit?'on':''}" id="revisitSwitch" onclick="toggleRevisit()"></div>
+<span style="font-size:13px;color:var(--text-2)">需要复看</span>
+</div>
+</div>
+</div>
+
+<div style="padding:0 0 20px">
+<button class="btn btn-primary btn-block" onclick="saveForm()" style="margin-bottom:8px">保存</button>
+${editingId?`<button class="btn btn-danger btn-block" onclick="confirmDelete('${editingId}')">删除此房源</button>`:''}
+</div>
+`;
+renderScoreInputs();
+renderPhotoGrid();
+renderSubwayLines();
+renderCustomFees();
+toggleSubwaySection();
+updateCostPreview();
+// Add cost preview listeners
+['f_rent','f_area','f_propertyFee','f_tax','f_electricityUnitPrice','f_commuteCost','f_discount'].forEach(id=>{
+const el = document.getElementById(id);
+if(el) el.addEventListener('input', updateCostPreview);
+});
+}
+
+function renderScoreInputs(){
+const dims = [
+{key:'price',label:'价格'},
+{key:'location',label:'地段'},
+{key:'condition',label:'房屋状况'},
+{key:'commute',label:'通勤'},
+{key:'surrounding',label:'周边配套'}
+];
+let html = '';
+dims.forEach(d=>{
+html += `<div class="form-group">
+<label class="form-label">${d.label}</label>
+<div class="stars" data-dim="${d.key}">
+${[1,2,3,4,5].map(n=>`<span class="star ${tempScores[d.key]>=n?'active':''}" data-val="${n}" onclick="setScore('${d.key}',${n})">★</span>`).join('')}
+</div>
+<div class="score-label">${tempScores[d.key]}/5 · ${['很差','较差','一般','较好','很好'][tempScores[d.key]-1]}</div>
+</div>`;
+});
+document.getElementById('scoreContainer').innerHTML = html;
+}
+
+function setScore(dim, val){
+tempScores[dim] = val;
+renderScoreInputs();
+}
+
+// ============ Photo ============
+function renderPhotoGrid(){
+let html = '';
+tempPhotos.forEach((p, i)=>{
+html += `<div class="photo-item">
+<img src="${p}" onclick="event.stopPropagation()">
+<button class="photo-delete" onclick="deletePhoto(${i})">×</button>
+</div>`;
+});
+html += `<div class="photo-add" onclick="document.getElementById('photoInput').click()">
+<span style="font-size:28px">+</span>
+<span>添加照片</span>
+</div>`;
+document.getElementById('photoGrid').innerHTML = html;
+}
+
+function handlePhotoUpload(event){
+const files = event.target.files;
+const max = 9 - tempPhotos.length;
+const toRead = Math.min(files.length, max);
+if(files.length > max) showToast(`最多添加9张照片，已添加前${max}张`);
+for(let i=0; i<toRead; i++){
+const reader = new FileReader();
+reader.onload = function(e){
+tempPhotos.push(e.target.result);
+renderPhotoGrid();
+};
+reader.readAsDataURL(files[i]);
+}
+event.target.value = '';
+}
+
+function deletePhoto(index){
+tempPhotos.splice(index, 1);
+renderPhotoGrid();
+}
+
+// ============ Subway Lines ============
+function toggleSubwaySection(){
+const method = document.getElementById('f_commuteMethod')?.value || '';
+const section = document.getElementById('subwaySection');
+if(section){
+section.style.display = (method.includes('地铁')) ? 'block' : 'none';
+}
+}
+
+function renderSubwayLines(){
+const container = document.getElementById('subwayLinesContainer');
+if(!container) return;
+let html = '';
+tempSubwayLines.forEach((line, i)=>{
+const lc = getLineColor(line);
+html += `<span class="subway-line-tag" style="background:${lc.bg};color:${lc.t}">
+${line}<span class="remove-line" onclick="removeSubwayLine(${i})">×</span>
+</span>`;
+});
+container.innerHTML = html;
+// Add change listener to select
+const sel = document.getElementById('subwayLineSelect');
+if(sel){
+sel.onchange = function(){
+if(this.value){
+if(!tempSubwayLines.includes(this.value)){
+tempSubwayLines.push(this.value);
+renderSubwayLines();
+}
+this.value = '';
+}
+};
+}
+}
+
+function removeSubwayLine(index){
+tempSubwayLines.splice(index, 1);
+renderSubwayLines();
+}
+
+function toggleTransfer(){
+const sw = document.getElementById('transferSwitch');
+sw.classList.toggle('on');
+}
+
+// ============ Custom Fees ============
+function renderCustomFees(){
+const container = document.getElementById('customFeesContainer');
+if(!container) return;
+let html = '';
+tempCustomFees.forEach((fee, i)=>{
+html += `<div class="custom-fee-row">
+<input class="form-input fee-name" placeholder="费用名称（如：网费）" value="${esc(fee.name||'')}" oninput="updateCustomFee(${i},'name',this.value)">
+<input class="form-input fee-amount" type="number" placeholder="金额" value="${fee.amount||''}" oninput="updateCustomFee(${i},'amount',this.value)">
+<button class="fee-delete" onclick="removeCustomFee(${i})">×</button>
+</div>`;
+});
+container.innerHTML = html;
+}
+
+function addCustomFeeRow(){
+tempCustomFees.push({name:'', amount:''});
+renderCustomFees();
+updateCostPreview();
+}
+
+function updateCustomFee(index, field, value){
+if(tempCustomFees[index]){
+tempCustomFees[index][field] = value;
+updateCostPreview();
+}
+}
+
+function removeCustomFee(index){
+tempCustomFees.splice(index, 1);
+renderCustomFees();
+updateCostPreview();
+}
+
+// ============ Intention & Revisit ============
+function setIntention(val){
+tempIntention = val;
+document.querySelectorAll('#intentionGroup .intention-btn').forEach(btn=>{
+btn.classList.toggle('active', btn.dataset.val === val);
+});
+}
+
+function toggleRevisit(){
+tempRevisit = !tempRevisit;
+document.getElementById('revisitSwitch').classList.toggle('on', tempRevisit);
+}
+
+// ============ Cost Preview with Formula ============
+function updateCostPreview(){
+const rent = parseFloat(document.getElementById('f_rent')?.value)||0;
+const area = parseFloat(document.getElementById('f_area')?.value)||0;
+const property = parseFloat(document.getElementById('f_propertyFee')?.value)||0;
+const tax = parseFloat(document.getElementById('f_tax')?.value)||0;
+const commute = parseFloat(document.getElementById('f_commuteCost')?.value)||0;
+const residents = parseInt(document.getElementById('f_residentCount')?.value)||1;
+const elecPrice = parseFloat(document.getElementById('f_electricityUnitPrice')?.value)||0.62;
+const discount = parseFloat(document.getElementById('f_discount')?.value)||0;
+
+// Utility calculation
+const elecKwh = area * 2 + residents * 40;
+const elecCost = elecKwh * elecPrice;
+const waterTons = residents * 3 + 2;
+const waterCost = waterTons * 5;
+const gasM3 = residents * 8;
+const gasCost = gasM3 * 3.5;
+const utilityMonthly = elecCost + waterCost + gasCost;
+
+// Custom fees
+const customTotal = tempCustomFees.reduce((sum,f)=>sum + (parseFloat(f.amount)||0), 0);
+
+const monthlyTotal = rent + property + tax + commute + utilityMonthly + customTotal - discount;
+const annualTotal = monthlyTotal * 12;
+
+const preview = document.getElementById('costPreview');
+if(monthlyTotal > 0 || rent > 0){
+let html = '<div class="cost-summary">';
+// Monthly breakdown
+html += `<div class="cost-row"><span>月租金</span><span>${rent.toLocaleString()} 元</span></div>`;
+html += `<div class="cost-row"><span>月物业费</span><span>${property.toLocaleString()} 元</span></div>`;
+html += `<div class="cost-row"><span>月税费</span><span>${tax.toLocaleString()} 元</span></div>`;
+html += `<div class="cost-row"><span>月通勤费</span><span>${commute.toLocaleString()} 元</span></div>`;
+// Utility with formula
+html += `<div class="cost-row"><span>月水电燃气费</span><span>${utilityMonthly.toFixed(1)} 元</span></div>`;
+html += `<div class="cost-formula">电费:(${area}㎡×2度/㎡+${residents}人×40度/人)×${elecPrice}元/度=${elecKwh.toFixed(0)}度×${elecPrice}元/度=${elecCost.toFixed(1)}元</div>`;
+html += `<div class="cost-formula">水费:(${residents}人×3吨/人+2吨)×5元/吨=${waterTons}吨×5元/吨=${waterCost}元</div>`;
+html += `<div class="cost-formula">燃气:${residents}人×8m³×3.5元/m³=${gasM3}m³×3.5元/m³=${gasCost}元</div>`;
+// Custom fees
+if(customTotal > 0){
+html += `<div class="cost-row"><span>月其他费用</span><span>${customTotal.toLocaleString()} 元</span></div>`;
+tempCustomFees.forEach(f=>{
+if(f.name || f.amount){
+html += `<div class="cost-formula">${esc(f.name||'未命名')}: ${f.amount||0} 元/月</div>`;
+}
+});
+}
+// Discount
+if(discount > 0){
+html += `<div class="cost-row cost-discount"><span>月折扣/减免</span><span>-${discount.toLocaleString()} 元</span></div>`;
+}
+html += `<div class="cost-row" style="font-weight:600;border-top:1px solid var(--border);margin-top:4px;padding-top:4px"><span>月均支出</span><span>${monthlyTotal.toLocaleString()} 元</span></div>`;
+// Annual breakdown with formulas
+html += `<div style="border-top:1px dashed var(--primary);margin-top:8px;padding-top:8px">`;
+html += `<div class="cost-row"><span>年租金</span><span>${rent.toLocaleString()}×12=${(rent*12).toLocaleString()} 元</span></div>`;
+html += `<div class="cost-row"><span>年物业费</span><span>${property.toLocaleString()}×12=${(property*12).toLocaleString()} 元</span></div>`;
+html += `<div class="cost-row"><span>年税费</span><span>${tax.toLocaleString()}×12=${(tax*12).toLocaleString()} 元</span></div>`;
+html += `<div class="cost-row"><span>年通勤费</span><span>${commute.toLocaleString()}×12=${(commute*12).toLocaleString()} 元</span></div>`;
+html += `<div class="cost-row"><span>年水电燃气费</span><span>${utilityMonthly.toFixed(1)}×12=${(utilityMonthly*12).toFixed(1)} 元</span></div>`;
+if(customTotal > 0){
+html += `<div class="cost-row"><span>年其他费用</span><span>${customTotal.toLocaleString()}×12=${(customTotal*12).toLocaleString()} 元</span></div>`;
+}
+if(discount > 0){
+html += `<div class="cost-row cost-discount"><span>年折扣/减免</span><span>-${discount.toLocaleString()}×12=-${(discount*12).toLocaleString()} 元</span></div>`;
+}
+html += `<div class="cost-row cost-total"><span>年度总费用</span><span>${annualTotal.toLocaleString()} 元</span></div>`;
+html += `</div></div>`;
+preview.innerHTML = html;
+}else{
+preview.innerHTML = '';
+}
+}
+
+function saveForm(){
+const name = document.getElementById('f_name').value.trim();
+if(!name){showToast('请填写小区名称');return}
+const data = {
+name: name,
+rent: document.getElementById('f_rent').value,
+area: document.getElementById('f_area').value,
+layout: document.getElementById('f_layout').value,
+floor: document.getElementById('f_floor').value,
+orientation: document.getElementById('f_orientation').value,
+address: document.getElementById('f_address').value,
+metroDistance: document.getElementById('f_metroDistance').value,
+market: document.getElementById('f_market').value,
+restaurant: document.getElementById('f_restaurant').value,
+hospital: document.getElementById('f_hospital').value,
+decoration: document.getElementById('f_decoration').value,
+furniture: document.getElementById('f_furniture').value,
+lighting: document.getElementById('f_lighting').value,
+noise: document.getElementById('f_noise').value,
+commuteTime: document.getElementById('f_commuteTime').value,
+commuteMethod: document.getElementById('f_commuteMethod').value,
+commuteCost: document.getElementById('f_commuteCost').value,
+needTransfer: document.getElementById('transferSwitch').classList.contains('on'),
+subwayLines: [...tempSubwayLines],
+propertyFee: document.getElementById('f_propertyFee').value,
+tax: document.getElementById('f_tax').value,
+residentCount: document.getElementById('f_residentCount').value,
+electricityUnitPrice: document.getElementById('f_electricityUnitPrice').value,
+customFees: tempCustomFees.filter(f=>f.name||f.amount),
+discount: document.getElementById('f_discount').value,
+notes: document.getElementById('f_notes').value,
+photos: tempPhotos,
+scores: {...tempScores},
+intention: tempIntention,
+needRevisit: tempRevisit
+};
+if(editingId){
+const idx = apartments.findIndex(a=>a.id===editingId);
+if(idx>=0){apartments[idx] = {...apartments[idx], ...data, updatedAt: Date.now()}}
+}else{
+data.id = genId();
+data.createdAt = Date.now();
+apartments.push(data);
+}
+saveData();
+closeForm();
+render();
+showToast(editingId?'已更新':'已添加');
+}
+
+function closeForm(){
+document.getElementById('formModal').classList.remove('show');
+editingId = null;
+tempPhotos = [];
+tempSubwayLines = [];
+tempCustomFees = [];
+}
+
+// ============ Detail ============
+function openDetail(id){
+const apt = apartments.find(a=>a.id===id);
+if(!apt) return;
+const score = calcTotalScore(apt);
+const cost = calcAnnualCost(apt);
+const util = cost.utilityDetail;
+const s = apt.scores || {};
+const intention = apt.intention || 'pending';
+const intMap = {like:'❤ 喜欢',backup:'★ 备选',exclude:'✕ 排除',pending:'○ 待定'};
+const residents = parseInt(apt.residentCount)||1;
+const subwayHtml = (apt.subwayLines||[]).map(line=>{
+const lc = getLineColor(line);
+return `<span class="subway-tag-detail" style="background:${lc.bg};color:${lc.t}">${line}</span>`;
+}).join('');
+const body = document.getElementById('detailBody');
+body.innerHTML = `
+<div class="detail-card">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+<span style="font-size:18px;font-weight:700">${esc(apt.name||'未命名')}</span>
+<span style="font-size:20px;font-weight:700;color:var(--primary)">${apt.rent||'-'}<small style="font-size:12px;font-weight:400;color:var(--text-3)">元/月</small></span>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<span class="tag ${intention==='like'?'tag-like':intention==='backup'?'tag-backup':intention==='exclude'?'tag-exclude':''}" style="color:var(--text-3)">${intMap[intention]}</span>
+${apt.needRevisit?'<span class="tag tag-revisit">⚑ 需复看</span>':''}
+</div>
+</div>
+
+<div class="detail-card">
+<h3>📊 综合评分</h3>
+<div class="detail-score-box">
+<div class="score-item"><div class="val" style="color:var(--primary)">${score}</div><div class="lbl">综合</div></div>
+<div class="score-item"><div class="val">${s.price||3}</div><div class="lbl">价格</div></div>
+<div class="score-item"><div class="val">${s.location||3}</div><div class="lbl">地段</div></div>
+<div class="score-item"><div class="val">${s.condition||3}</div><div class="lbl">房屋</div></div>
+<div class="score-item"><div class="val">${s.commute||3}</div><div class="lbl">通勤</div></div>
+<div class="score-item"><div class="val">${s.surrounding||3}</div><div class="lbl">周边</div></div>
+</div>
+</div>
+
+<div class="detail-card">
+<h3>📋 基础信息</h3>
+<div class="detail-row"><span class="detail-label">户型</span><span class="detail-value">${esc(apt.layout||'-')}</span></div>
+<div class="detail-row"><span class="detail-label">面积</span><span class="detail-value">${apt.area||'-'} ㎡</span></div>
+<div class="detail-row"><span class="detail-label">楼层</span><span class="detail-value">${esc(apt.floor||'-')} 层</span></div>
+<div class="detail-row"><span class="detail-label">朝向</span><span class="detail-value">${esc(apt.orientation||'-')}</span></div>
+<div class="detail-row"><span class="detail-label">入住人数</span><span class="detail-value">${residents} 人</span></div>
+<div class="detail-row"><span class="detail-label">地址</span><span class="detail-value">${esc(apt.address||'-')}</span></div>
+</div>
+
+<div class="detail-card">
+<h3>🚇 周边配套</h3>
+<div class="detail-row"><span class="detail-label">地铁站</span><span class="detail-value">${esc(apt.metroDistance||'-')}</span></div>
+${subwayHtml?`<div class="detail-row"><span class="detail-label">地铁线路</span><span class="detail-value">${subwayHtml}</span></div>`:''}
+<div class="detail-row"><span class="detail-label">超市菜场</span><span class="detail-value">${esc(apt.market||'-')}</span></div>
+<div class="detail-row"><span class="detail-label">餐饮</span><span class="detail-value">${esc(apt.restaurant||'-')}</span></div>
+<div class="detail-row"><span class="detail-label">医院</span><span class="detail-value">${esc(apt.hospital||'-')}</span></div>
+</div>
+
+<div class="detail-card">
+<h3>🏠 房屋状况</h3>
+<div class="detail-row"><span class="detail-label">装修</span><span class="detail-value">${esc(apt.decoration||'-')}</span></div>
+<div class="detail-row"><span class="detail-label">家具家电</span><span class="detail-value">${esc(apt.furniture||'-')}</span></div>
+<div class="detail-row"><span class="detail-label">采光通风</span><span class="detail-value">${esc(apt.lighting||'-')}</span></div>
+<div class="detail-row"><span class="detail-label">噪音</span><span class="detail-value">${esc(apt.noise||'-')}</span></div>
+</div>
+
+<div class="detail-card">
+<h3>🚌 通勤信息</h3>
+<div class="detail-row"><span class="detail-label">通勤时间</span><span class="detail-value">${esc(apt.commuteTime||'-')} 分钟</span></div>
+<div class="detail-row"><span class="detail-label">交通方式</span><span class="detail-value">${esc(apt.commuteMethod||'-')}${apt.needTransfer?'（需换乘）':''}</span></div>
+<div class="detail-row"><span class="detail-label">月通勤费</span><span class="detail-value">${apt.commuteCost||'-'} 元</span></div>
+</div>
+
+<div class="detail-card">
+<h3>💰 费用估算（含公式明细）</h3>
+<div class="cost-summary">
+<div class="cost-row"><span>月租金</span><span>${(parseFloat(apt.rent)||0).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>月物业费</span><span>${(parseFloat(apt.propertyFee)||0).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>月税费</span><span>${(parseFloat(apt.tax)||0).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>月通勤费</span><span>${(parseFloat(apt.commuteCost)||0).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>月水电燃气费</span><span>${util.monthly.toFixed(1)} 元</span></div>
+<div class="cost-formula">电费:(${parseFloat(apt.area)||0}㎡×2度/㎡+${residents}人×40度/人)×${util.electricity.price}元/度=${util.electricity.kwh.toFixed(0)}度×${util.electricity.price}元/度=${util.electricity.cost.toFixed(1)}元</div>
+<div class="cost-formula">水费:(${residents}人×3吨/人+2吨)×5元/吨=${util.water.tons}吨×5元/吨=${util.water.cost}元</div>
+<div class="cost-formula">燃气:${residents}人×8m³×3.5元/m³=${util.gas.m3}m³×3.5元/m³=${util.gas.cost}元</div>
+${(apt.customFees||[]).map(f=>`<div class="cost-row"><span>${esc(f.name||'其他')}</span><span>${(parseFloat(f.amount)||0).toLocaleString()} 元</span></div>`).join('')}
+${parseFloat(apt.discount)>0?`<div class="cost-row cost-discount"><span>月折扣/减免</span><span>-${(parseFloat(apt.discount)||0).toLocaleString()} 元</span></div>`:''}
+<div class="cost-row" style="font-weight:600;border-top:1px solid var(--border);margin-top:4px;padding-top:4px"><span>月均支出</span><span>${cost.monthlyTotal.toLocaleString()} 元</span></div>
+<div style="border-top:1px dashed var(--primary);margin-top:8px;padding-top:8px">
+<div class="cost-row"><span>年租金</span><span>${(parseFloat(apt.rent)||0).toLocaleString()}×12=${(cost.rent).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>年物业费</span><span>${(parseFloat(apt.propertyFee)||0).toLocaleString()}×12=${(cost.property).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>年税费</span><span>${(parseFloat(apt.tax)||0).toLocaleString()}×12=${(cost.tax).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>年通勤费</span><span>${(parseFloat(apt.commuteCost)||0).toLocaleString()}×12=${(cost.commute).toLocaleString()} 元</span></div>
+<div class="cost-row"><span>年水电燃气费</span><span>${util.monthly.toFixed(1)}×12=${(cost.utility).toFixed(1)} 元</span></div>
+${cost.custom>0?`<div class="cost-row"><span>年其他费用</span><span>${cost.customMonthly.toLocaleString()}×12=${(cost.custom).toLocaleString()} 元</span></div>`:''}
+${cost.discount>0?`<div class="cost-row cost-discount"><span>年折扣/减免</span><span>-${(parseFloat(apt.discount)||0).toLocaleString()}×12=-${(cost.discount).toLocaleString()} 元</span></div>`:''}
+<div class="cost-row cost-total"><span>年度总费用</span><span>${cost.total.toLocaleString()} 元</span></div>
+</div>
+</div>
+</div>
+
+${apt.photos && apt.photos.length > 0 ? `
+<div class="detail-card">
+<h3>📷 照片</h3>
+<div class="detail-photos">
+${apt.photos.map(p=>`<img src="${p}" onclick="viewPhoto('${p.replace(/'/g,"\\'")}')">`).join('')}
+</div>
+</div>`:''}
+
+${apt.notes ? `
+<div class="detail-card">
+<h3>📝 探访笔记</h3>
+<div class="detail-notes">${esc(apt.notes)}</div>
+</div>`:''}
+
+<div class="detail-actions">
+<button class="btn btn-primary" onclick="closeDetail();openForm('${apt.id}')">编辑</button>
+<button class="btn btn-outline" onclick="quickToggleIntention('${apt.id}')">${intention==='like'?'取消喜欢':'标记喜欢'}</button>
+<button class="btn btn-outline" onclick="toggleRevisitDetail('${apt.id}')">${apt.needRevisit?'取消复看':'标记复看'}</button>
+</div>
+`;
+document.getElementById('detailModal').classList.add('show');
+}
+
+function closeDetail(){
+document.getElementById('detailModal').classList.remove('show');
+}
+
+function quickToggleIntention(id){
+const apt = apartments.find(a=>a.id===id);
+if(!apt) return;
+apt.intention = apt.intention === 'like' ? 'pending' : 'like';
+apt.updatedAt = Date.now();
+saveData();
+render();
+openDetail(id);
+showToast(apt.intention==='like'?'已标记为喜欢':'已取消喜欢');
+}
+
+function toggleRevisitDetail(id){
+const apt = apartments.find(a=>a.id===id);
+if(!apt) return;
+apt.needRevisit = !apt.needRevisit;
+apt.updatedAt = Date.now();
+saveData();
+render();
+openDetail(id);
+showToast(apt.needRevisit?'已标记需复看':'已取消复看');
+}
+
+function viewPhoto(src){
+const w = window.open('');
+if(w){
+w.document.write(`<img src="${src}" style="width:100%;height:auto">`);
+}
+}
+
+// ============ Settings ============
+function openSettings(){
+renderSettings();
+document.getElementById('settingsModal').classList.add('show');
+}
+
+function renderSettings(){
+const dims = [
+{key:'price',label:'价格'},
+{key:'location',label:'地段'},
+{key:'condition',label:'房屋状况'},
+{key:'commute',label:'通勤'},
+{key:'surrounding',label:'周边配套'}
+];
+let html = `<div class="form-section">
+<div class="form-section-title">⚙ 评分权重设置</div>
+<p style="font-size:13px;color:var(--text-3);margin-bottom:12px">调整各维度权重（总计100%），系统将按权重计算综合评分</p>`;
+dims.forEach(d=>{
+html += `<div class="weight-row">
+<span class="weight-label">${d.label}</span>
+<input type="range" class="weight-slider" min="0" max="100" value="${weights[d.key]}" oninput="updateWeight('${d.key}',this.value)">
+<span class="weight-value" id="wv_${d.key}">${weights[d.key]}%</span>
+</div>`;
+});
+const total = Object.values(weights).reduce((a,b)=>a+b,0);
+html += `<div class="weight-total ${total===100?'ok':'err'}" id="weightTotal">总权重：${total}% ${total===100?'✓':'（需等于100%）'}</div>
+<button class="btn btn-outline btn-block" style="margin-top:10px" onclick="resetWeights()">恢复默认均衡</button>
+</div>`;
+document.getElementById('settingsBody').innerHTML = html;
+}
+
+function updateWeight(key, val){
+weights[key] = parseInt(val);
+document.getElementById('wv_'+key).textContent = val+'%';
+const total = Object.values(weights).reduce((a,b)=>a+b,0);
+const el = document.getElementById('weightTotal');
+el.textContent = `总权重：${total}% ${total===100?'✓':'（需等于100%）'}`;
+el.className = 'weight-total ' + (total===100?'ok':'err');
+saveData();
+}
+
+function resetWeights(){
+weights = {price:20, location:20, condition:20, commute:20, surrounding:20};
+saveData();
+renderSettings();
+render();
+showToast('已恢复默认均衡权重');
+}
+
+function closeSettings(){
+document.getElementById('settingsModal').classList.remove('show');
+render();
+}
+
+// ============ Export ============
+function openExport(){
+const body = document.getElementById('exportBody');
+const doneCount = checklist.filter(c=>c.done).length;
+body.innerHTML = `
+<div class="form-section">
+<div class="form-section-title">📤 导出与分享</div>
+<button class="export-btn" onclick="exportText()">
+📋 导出对比文本
+<div class="desc">生成纯文本对比摘要，可复制分享给家人朋友</div>
+</button>
+<button class="export-btn" onclick="exportJSON()">
+💾 导出备份数据
+<div class="desc">导出JSON文件（含房源+清单），可用于备份或迁移到其他设备</div>
+</button>
+<button class="export-btn" onclick="importJSON()">
+📥 导入备份数据
+<div class="desc">从JSON文件恢复数据（将覆盖当前数据）</div>
+</button>
+<input type="file" id="importInput" accept=".json" style="display:none" onchange="handleImport(event)">
+</div>
+<div class="form-section">
+<div class="form-section-title">📊 数据统计</div>
+<div class="detail-row"><span class="detail-label">房源总数</span><span class="detail-value">${apartments.length} 套</span></div>
+<div class="detail-row"><span class="detail-label">已标记喜欢</span><span class="detail-value">${apartments.filter(a=>a.intention==='like').length} 套</span></div>
+<div class="detail-row"><span class="detail-label">备选</span><span class="detail-value">${apartments.filter(a=>a.intention==='backup').length} 套</span></div>
+<div class="detail-row"><span class="detail-label">需复看</span><span class="detail-value">${apartments.filter(a=>a.needRevisit).length} 套</span></div>
+<div class="detail-row"><span class="detail-label">已排除</span><span class="detail-value">${apartments.filter(a=>a.intention==='exclude').length} 套</span></div>
+<div class="detail-row"><span class="detail-label">准备清单</span><span class="detail-value">${doneCount}/${checklist.length} 项已完成</span></div>
+</div>
+${apartments.length > 0 || checklist.length > 0 ? `
+<div class="form-section">
+<div class="form-section-title">⚠️ 危险操作</div>
+<button class="btn btn-danger btn-block" onclick="confirmClearAll()">清空所有数据</button>
+</div>` : ''}
+`;
+document.getElementById('exportModal').classList.add('show');
+}
+
+function closeExport(){
+document.getElementById('exportModal').classList.remove('show');
+}
+
+function exportText(){
+if(apartments.length === 0 && checklist.length === 0){showToast('暂无数据');return}
+const sorted = [...apartments].sort((a,b)=>calcTotalScore(b)-calcTotalScore(a));
+let text = '🏠 看房对比汇总\n';
+text += '生成时间：' + new Date().toLocaleString('zh-CN') + '\n';
+text += '房源数量：' + apartments.length + ' 套\n';
+text += '═'.repeat(30) + '\n\n';
+sorted.forEach((apt, i)=>{
+const score = calcTotalScore(apt);
+const cost = calcAnnualCost(apt);
+const intMap = {like:'❤喜欢',backup:'★备选',exclude:'✕排除',pending:'○待定'};
+text += `【${i+1}】${apt.name||'未命名'}\n`;
+text += `综合评分：${score}/5  |  意向：${intMap[apt.intention||'pending']}\n`;
+text += `月租：${apt.rent||'-'}元  |  面积：${apt.area||'-'}㎡  |  户型：${apt.layout||'-'}\n`;
+text += `楼层：${apt.floor||'-'}层  |  朝向：${apt.orientation||'-'}  |  入住：${parseInt(apt.residentCount)||1}人\n`;
+text += `通勤：${apt.commuteTime||'-'}分钟（${apt.commuteMethod||'-'}${apt.needTransfer?'，需换乘':''}）\n`;
+if(apt.subwayLines && apt.subwayLines.length) text += `地铁线路：${apt.subwayLines.join('→')}\n`;
+text += `装修：${apt.decoration||'-'}  |  采光：${apt.lighting||'-'}  |  噪音：${apt.noise||'-'}\n`;
+text += `地铁：${apt.metroDistance||'-'}\n`;
+if(cost.total > 0){
+text += `月均支出：${cost.monthlyTotal.toLocaleString()}元  |  年度总费用：${cost.total.toLocaleString()}元\n`;
+}
+if(apt.customFees && apt.customFees.length){
+text += `其他费用：${apt.customFees.map(f=>f.name+':'+f.amount+'元').join('，')}\n`;
+}
+if(apt.discount > 0) text += `月折扣：-${apt.discount}元\n`;
+if(apt.notes) text += `笔记：${apt.notes}\n`;
+text += '─'.repeat(30) + '\n\n';
+});
+if(checklist.length > 0){
+text += '\n📦 租房搬迁准备清单\n';
+text += '═'.repeat(30) + '\n';
+CHECKLIST_CATEGORIES.forEach(cat=>{
+const items = checklist.filter(c=>(c.category||'其他')===cat);
+if(items.length === 0) return;
+const catDone = items.filter(c=>c.done).length;
+text += `\n【${cat}】(${catDone}/${items.length})\n`;
+items.forEach(c=>{
+const t = c.transport ? getTransportIcon(c.transport)+c.transport : '';
+text += `${c.done?'[✓]':'[  ]'} ${c.title}${t?' ('+t+')':''}${c.notes?' - '+c.notes:''}\n`;
+});
+});
+}
+if(navigator.clipboard){
+navigator.clipboard.writeText(text).then(()=>{
+showToast('已复制到剪贴板，可粘贴分享');
+}).catch(()=>{
+showTextExport(text);
+});
+}else{
+showTextExport(text);
+}
+}
+
+function showTextExport(text){
+const body = document.getElementById('exportBody');
+body.innerHTML = `
+<div class="form-section">
+<div class="form-section-title">📋 对比文本</div>
+<textarea class="form-textarea" style="min-height:300px;font-size:12px" readonly>${esc(text)}</textarea>
+<button class="btn btn-primary btn-block" style="margin-top:8px" onclick="openExport()">返回</button>
+</div>
+`;
+}
+
+function exportJSON(){
+const data = {version:2, exportDate:new Date().toISOString(), apartments:apartments, weights:weights, checklist:checklist};
+const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = `看房对比_${new Date().toISOString().slice(0,10)}.json`;
+a.click();
+URL.revokeObjectURL(url);
+showToast('已导出备份文件');
+}
+
+function importJSON(){
+document.getElementById('importInput').click();
+}
+
+function handleImport(event){
+const file = event.target.files[0];
+if(!file) return;
+const reader = new FileReader();
+reader.onload = function(e){
+try{
+const data = JSON.parse(e.target.result);
+if(data.apartments){
+apartments = data.apartments;
+if(data.weights) weights = data.weights;
+if(data.checklist) checklist = data.checklist;
+// Migrate transport values on import
+checklist.forEach(c=>{
+if(c.transport==='行李') c.transport='行李携带';
+if(c.transport==='当地') c.transport='当地购买';
+});
+saveData();
+render();
+closeExport();
+showToast(`已导入 ${apartments.length} 套房源，${checklist.length} 项清单`);
+}else{
+showToast('文件格式不正确');
+}
+}catch(err){
+showToast('导入失败：文件格式错误');
+}
+};
+reader.readAsText(file);
+event.target.value = '';
+}
+
+function confirmClearAll(){
+showConfirm('确定清空所有数据（房源+清单）？此操作不可恢复！', function(){
+apartments = [];
+checklist = [];
+saveData();
+render();
+closeExport();
+showToast('已清空所有数据');
+});
+}
+
+// ============ Checklist ============
+function renderChecklist(){
+editingChecklistId = null;
+const container = document.getElementById('mainContent');
+const doneCount = checklist.filter(c=>c.done).length;
+const totalCount = checklist.length;
+const progress = totalCount > 0 ? Math.round(doneCount/totalCount*100) : 0;
+
+let html = '<div class="checklist-container">';
+if(totalCount > 0){
+html += `<div class="checklist-summary">
+<div style="font-size:14px;color:var(--text-2)">📦 搬迁准备进度</div>
+<div style="font-size:28px;font-weight:700;color:${progress===100?'var(--success)':'var(--primary)'};margin-top:4px">${progress}%</div>
+<div style="font-size:12px;color:var(--text-3);margin-top:2px">${doneCount}/${totalCount} 项已完成</div>
+<div class="checklist-progress-bar"><div class="checklist-progress-fill" style="width:${progress}%"></div></div>
+</div>`;
+}
+
+if(totalCount === 0){
+html += `<div class="empty-state">
+<div class="icon">📝</div>
+<p>还没有添加准备事项<br>点击右下角 + 添加待办</p>
+</div>`;
+}else{
+html += renderChecklistGroups();
+}
+html += '</div>';
+container.innerHTML = html;
+}
+
+function renderChecklistGroups(){
+let html = '';
+CHECKLIST_CATEGORIES.forEach(cat=>{
+const items = checklist.filter(c=>(c.category||'其他')===cat);
+if(items.length === 0) return;
+const catDone = items.filter(c=>c.done).length;
+html += `<div class="checklist-group">`;
+html += `<div class="checklist-group-header">${cat} <span class="checklist-group-count">${catDone}/${items.length}</span></div>`;
+const sorted = [...items].sort((a,b)=>{
+const oa = a.order!==undefined?a.order:(a.createdAt||0);
+const ob = b.order!==undefined?b.order:(b.createdAt||0);
+return oa - ob;
+});
+sorted.forEach(item=>{
+html += renderChecklistItem(item);
+});
+html += `</div>`;
+});
+return html;
+}
+
+function renderChecklistItem(item){
+if(editingChecklistId === item.id){
+return renderChecklistEditForm(item);
+}
+const transport = item.transport || '';
+const transportLabel = transport ? getTransportIcon(transport) + transport : '';
+return `<div class="checklist-item ${item.done?'done':''}" data-id="${item.id}" onclick="toggleChecklistItem('${item.id}')">
+<div class="checklist-drag-handle" onpointerdown="startItemDrag(event,'${item.id}')">⠿</div>
+<div class="checklist-checkbox ${item.done?'checked':''}">${item.done?'✓':''}</div>
+<div class="checklist-content">
+<div class="checklist-title-row">
+<span class="checklist-title">${esc(item.title)}</span>
+${transportLabel?`<span class="checklist-transport" data-t="${transport}">${transportLabel}</span>`:''}
+</div>
+${item.notes?`<div class="checklist-notes">${esc(item.notes)}</div>`:''}
+</div>
+<div class="checklist-item-actions">
+<button class="checklist-edit-btn" onclick="event.stopPropagation();startEditChecklist('${item.id}')">✏️</button>
+<button class="checklist-delete" onclick="event.stopPropagation();deleteChecklistItem('${item.id}')">🗑</button>
+</div>
+</div>`;
+}
+
+function renderChecklistEditForm(item){
+return `<div class="checklist-edit-form">
+<div class="form-group">
+<label class="form-label">物品名称</label>
+<input class="form-input" id="edit_name_${item.id}" value="${esc(item.name||item.title||'')}">
+</div>
+<div class="form-row">
+<div class="form-group">
+<label class="form-label">数量</label>
+<input class="form-input" id="edit_qty_${item.id}" type="number" value="${item.quantity||1}" min="1">
+</div>
+<div class="form-group">
+<label class="form-label">搬运方式</label>
+<select class="form-select" id="edit_transport_${item.id}">
+<option value="行李携带" ${item.transport==='行李携带'?'selected':''}>🧳 行李携带</option>
+<option value="当地购买" ${item.transport==='当地购买'?'selected':''}>🛒 当地购买</option>
+<option value="皆可" ${item.transport==='皆可'?'selected':''}>⚖️ 皆可</option>
+</select>
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">类别</label>
+<select class="form-select" id="edit_category_${item.id}">
+${CHECKLIST_CATEGORIES.map(c=>`<option value="${c}" ${(item.category||'其他')===c?'selected':''}>${c}</option>`).join('')}
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">备注</label>
+<input class="form-input" id="edit_notes_${item.id}" value="${esc(item.notes||'')}" placeholder="如：办理流程、注意事项等">
+</div>
+<div style="display:flex;gap:8px">
+<button class="btn btn-primary" style="flex:1;padding:8px" onclick="saveEditChecklist('${item.id}')">保存</button>
+<button class="btn btn-outline" style="padding:8px" onclick="cancelEditChecklist()">取消</button>
+</div>
+</div>`;
+}
+
+function startEditChecklist(id){
+editingChecklistId = id;
+renderChecklistInline();
+setTimeout(()=>{document.getElementById('edit_name_'+id)?.focus()},50);
+}
+
+function cancelEditChecklist(){
+editingChecklistId = null;
+renderChecklistInline();
+}
+
+function saveEditChecklist(id){
+const item = checklist.find(c=>c.id===id);
+if(!item) return;
+const name = document.getElementById('edit_name_'+id).value.trim();
+if(!name){showToast('物品名称不能为空');return}
+const qty = parseInt(document.getElementById('edit_qty_'+id).value)||1;
+const transport = document.getElementById('edit_transport_'+id).value;
+const category = document.getElementById('edit_category_'+id).value;
+const notes = document.getElementById('edit_notes_'+id).value.trim();
+item.name = name;
+item.quantity = qty;
+item.title = qty > 1 ? name + ' ×' + qty : name;
+item.transport = transport;
+item.category = category;
+item.notes = notes;
+editingChecklistId = null;
+saveData();
+renderChecklistInline();
+showToast('已保存修改');
+}
+
+function renderChecklistInline(){
+const container = document.getElementById('mainContent');
+const doneCount = checklist.filter(c=>c.done).length;
+const totalCount = checklist.length;
+const progress = totalCount > 0 ? Math.round(doneCount/totalCount*100) : 0;
+let html = '<div class="checklist-container">';
+if(totalCount > 0){
+html += `<div class="checklist-summary">
+<div style="font-size:14px;color:var(--text-2)">📦 搬迁准备进度</div>
+<div style="font-size:28px;font-weight:700;color:${progress===100?'var(--success)':'var(--primary)'};margin-top:4px">${progress}%</div>
+<div style="font-size:12px;color:var(--text-3);margin-top:2px">${doneCount}/${totalCount} 项已完成</div>
+<div class="checklist-progress-bar"><div class="checklist-progress-fill" style="width:${progress}%"></div></div>
+</div>`;
+}
+html += renderChecklistGroups();
+html += '</div>';
+container.innerHTML = html;
+}
+
+function onFabClick(){
+if(currentView === 'checklist'){
+showChecklistAddForm();
+}else{
+openForm();
+}
+}
+
+function showChecklistAddForm(){
+const container = document.getElementById('mainContent');
+const doneCount = checklist.filter(c=>c.done).length;
+const totalCount = checklist.length;
+const progress = totalCount > 0 ? Math.round(doneCount/totalCount*100) : 0;
+let html = '<div class="checklist-container">';
+if(totalCount > 0){
+html += `<div class="checklist-summary">
+<div style="font-size:14px;color:var(--text-2)">📦 搬迁准备进度</div>
+<div style="font-size:28px;font-weight:700;color:${progress===100?'var(--success)':'var(--primary)'};margin-top:4px">${progress}%</div>
+<div style="font-size:12px;color:var(--text-3);margin-top:2px">${doneCount}/${totalCount} 项已完成</div>
+<div class="checklist-progress-bar"><div class="checklist-progress-fill" style="width:${progress}%"></div></div>
+</div>`;
+}
+html += `<div class="checklist-add-form">
+<div class="form-group">
+<label class="form-label">物品名称 *</label>
+<input class="form-input" id="checklistInput" placeholder="如：转换插头" autofocus>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label class="form-label">数量</label>
+<input class="form-input" id="checklistQty" type="number" value="1" min="1">
+</div>
+<div class="form-group">
+<label class="form-label">搬运方式</label>
+<select class="form-select" id="checklistTransport">
+<option value="行李携带">🧳 行李携带</option>
+<option value="当地购买">🛒 当地购买</option>
+<option value="皆可">⚖️ 皆可</option>
+</select>
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">类别</label>
+<select class="form-select" id="checklistCategory">
+${CHECKLIST_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">备注</label>
+<input class="form-input" id="checklistNotes" placeholder="如：办理流程、注意事项等">
+</div>
+<div style="display:flex;gap:8px">
+<button class="btn btn-primary" style="flex:1" onclick="addChecklistItem()">添加</button>
+<button class="btn btn-outline" onclick="renderChecklist()">取消</button>
+</div>
+</div>`;
+// Group by category
+CHECKLIST_CATEGORIES.forEach(cat=>{
+const items = checklist.filter(c=>(c.category||'其他')===cat);
+if(items.length === 0) return;
+const catDone = items.filter(c=>c.done).length;
+html += `<div class="checklist-group">`;
+html += `<div class="checklist-group-header">${cat} <span class="checklist-group-count">${catDone}/${items.length}</span></div>`;
+const sorted = [...items].sort((a,b)=>{
+const oa = a.order!==undefined?a.order:(a.createdAt||0);
+const ob = b.order!==undefined?b.order:(b.createdAt||0);
+return oa - ob;
+});
+sorted.forEach(item=>{
+const transport = item.transport || '';
+const transportLabel = transport ? getTransportIcon(transport) + transport : '';
+html += `<div class="checklist-item ${item.done?'done':''}" data-id="${item.id}" onclick="toggleChecklistItem('${item.id}')">
+<div class="checklist-drag-handle" onpointerdown="startItemDrag(event,'${item.id}')">⠿</div>
+<div class="checklist-checkbox ${item.done?'checked':''}">${item.done?'✓':''}</div>
+<div class="checklist-content">
+<div class="checklist-title-row">
+<span class="checklist-title">${esc(item.title)}</span>
+${transportLabel?`<span class="checklist-transport" data-t="${transport}">${transportLabel}</span>`:''}
+</div>
+${item.notes?`<div class="checklist-notes">${esc(item.notes)}</div>`:''}
+</div>
+<button class="checklist-delete" onclick="event.stopPropagation();deleteChecklistItem('${item.id}')">🗑</button>
+</div>`;
+});
+html += `</div>`;
+});
+html += '</div>';
+container.innerHTML = html;
+setTimeout(()=>{document.getElementById('checklistInput')?.focus()},100);
+document.getElementById('checklistInput')?.addEventListener('keydown', function(e){
+if(e.key === 'Enter') addChecklistItem();
+});
+}
+
+function addChecklistItem(){
+const input = document.getElementById('checklistInput');
+if(!input) return;
+const name = input.value.trim();
+if(!name){showToast('请输入物品名称');return}
+const qty = parseInt(document.getElementById('checklistQty')?.value)||1;
+const transport = document.getElementById('checklistTransport')?.value||'行李携带';
+const category = document.getElementById('checklistCategory')?.value||'其他';
+const notes = document.getElementById('checklistNotes')?.value.trim()||'';
+const catItems = checklist.filter(c=>(c.category||'其他')===category);
+const maxOrder = catItems.reduce((m,c)=>Math.max(m, c.order!==undefined?c.order:(c.createdAt||0)), 0);
+checklist.push({
+id: genId(),
+title: qty > 1 ? name + ' ×' + qty : name,
+name: name,
+done: false,
+category: category,
+transport: transport,
+quantity: qty,
+notes: notes,
+order: maxOrder + 1,
+createdAt: Date.now()
+});
+saveData();
+showChecklistAddForm();
+showToast('已添加');
+}
+
+function toggleChecklistItem(id){
+const item = checklist.find(c=>c.id===id);
+if(!item) return;
+item.done = !item.done;
+saveData();
+renderChecklist();
+if(item.done) showToast('已完成：'+item.title);
+}
+
+// ============ Drag to reorder checklist ============
+let itemDragData = null;
+
+function startItemDrag(e, id){
+e.stopPropagation();
+e.preventDefault();
+const handle = e.currentTarget;
+const itemEl = handle.closest('.checklist-item');
+if(!itemEl) return;
+const item = checklist.find(c=>c.id===id);
+if(!item) return;
+itemDragData = {
+id: id,
+el: itemEl,
+category: item.category || '其他',
+startY: e.clientY,
+pointerId: e.pointerId,
+moved: false
+};
+itemEl.classList.add('checklist-dragging');
+try { handle.setPointerCapture(e.pointerId); } catch(err){}
+document.addEventListener('pointermove', onItemDragMove);
+document.addEventListener('pointerup', onItemDragEnd);
+document.addEventListener('pointercancel', onItemDragEnd);
+}
+
+function onItemDragMove(e){
+if(!itemDragData) return;
+e.preventDefault();
+const dy = e.clientY - itemDragData.startY;
+if(Math.abs(dy) > 4) itemDragData.moved = true;
+itemDragData.el.style.transform = 'translateY(' + dy + 'px)';
+
+const group = itemDragData.el.parentElement;
+const siblings = Array.from(group.querySelectorAll('.checklist-item:not(.checklist-dragging)'));
+let insertBefore = null;
+for(const sib of siblings){
+const r = sib.getBoundingClientRect();
+if(e.clientY < r.top + r.height/2){
+insertBefore = sib;
+break;
+}
+}
+if(insertBefore && insertBefore !== itemDragData.el.nextSibling){
+const oldRect = itemDragData.el.getBoundingClientRect();
+group.insertBefore(itemDragData.el, insertBefore);
+const newRect = itemDragData.el.getBoundingClientRect();
+itemDragData.startY += (newRect.top - oldRect.top);
+itemDragData.el.style.transform = 'translateY(' + (e.clientY - itemDragData.startY) + 'px)';
+} else if(!insertBefore && group.lastElementChild !== itemDragData.el && siblings.length > 0){
+const oldRect = itemDragData.el.getBoundingClientRect();
+group.appendChild(itemDragData.el);
+const newRect = itemDragData.el.getBoundingClientRect();
+itemDragData.startY += (newRect.top - oldRect.top);
+itemDragData.el.style.transform = 'translateY(' + (e.clientY - itemDragData.startY) + 'px)';
+}
+}
+
+function onItemDragEnd(e){
+if(!itemDragData) return;
+document.removeEventListener('pointermove', onItemDragMove);
+document.removeEventListener('pointerup', onItemDragEnd);
+document.removeEventListener('pointercancel', onItemDragEnd);
+itemDragData.el.style.transform = '';
+itemDragData.el.classList.remove('checklist-dragging');
+
+if(itemDragData.moved){
+const group = itemDragData.el.parentElement;
+const itemEls = Array.from(group.querySelectorAll('.checklist-item'));
+itemEls.forEach((el, idx)=>{
+const it = checklist.find(c=>c.id===el.dataset.id);
+if(it) it.order = idx;
+});
+saveData();
+showToast('顺序已更新');
+}
+itemDragData = null;
+}
+
+function deleteChecklistItem(id){
+showConfirm('删除此项？', function(){
+checklist = checklist.filter(c=>c.id!==id);
+saveData();
+renderChecklist();
+showToast('已删除');
+});
+}
+
+// ============ View Switching ============
+function switchView(view){
+currentView = view;
+document.getElementById('btnCardView').classList.toggle('active', view==='card');
+document.getElementById('btnTableView').classList.toggle('active', view==='table');
+document.getElementById('btnChecklistView').classList.toggle('active', view==='checklist');
+render();
+}
+
+function setFilter(filter){
+currentFilter = filter;
+document.querySelectorAll('.filter-chip').forEach(c=>{
+c.classList.toggle('active', c.dataset.filter === filter);
+});
+render();
+}
+
+// ============ Confirm Dialog ============
+let confirmCallback = null;
+function showConfirm(text, callback){
+document.getElementById('confirmText').textContent = text;
+confirmCallback = callback;
+document.getElementById('confirmOverlay').classList.add('show');
+}
+function closeConfirm(){
+document.getElementById('confirmOverlay').classList.remove('show');
+confirmCallback = null;
+}
+document.getElementById('confirmOkBtn').onclick = function(){
+if(confirmCallback) confirmCallback();
+closeConfirm();
+};
+
+// ============ Delete ============
+function confirmDelete(id){
+showConfirm('确定删除此房源？', function(){
+apartments = apartments.filter(a=>a.id !== id);
+saveData();
+closeForm();
+render();
+showToast('已删除');
+});
+}
+
+// ============ Utils ============
+function esc(str){
+if(str === null || str === undefined) return '';
+return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function showToast(msg){
+const t = document.getElementById('toast');
+t.textContent = msg;
+t.classList.add('show');
+setTimeout(()=>t.classList.remove('show'), 2000);
+}
+
+// ============ Init ============
+loadData();
+render();
+
+// Prevent body scroll when modal open
+document.addEventListener('touchmove', function(e){
+if(document.querySelector('.modal.show') && !e.target.closest('.modal-body')){
+e.preventDefault();
+}
+}, {passive:false});
+</script>
+</body>
+</html>
