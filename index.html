@@ -1878,6 +1878,8 @@ document.getElementById('mapModal').classList.add('show');
 if(window.AMap){ initMap(); return; }
 const body = document.getElementById('mapBody');
 body.innerHTML = '<div class="map-loading">⏳ 正在加载地图...</div>';
+// 高德 JS API 2.0 安全密钥，必须在脚本加载前设置
+window._AMapSecurityConfig = { securityJsCode:'0cd5a4c8a7b5ab5ef4299a99b7d8eab7' };
 const script = document.createElement('script');
 script.src = 'https://webapi.amap.com/maps?v=2.0&key='+AMAP_KEY+'&plugin=AMap.Geocoder';
 script.onload = function(){ initMap(); };
