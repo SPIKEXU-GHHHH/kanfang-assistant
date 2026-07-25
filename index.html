@@ -453,13 +453,16 @@ initDefaultChecklist();
 
 function saveData(){
 try{
-const aptJson = JSON.stringify(apartments);
-localStorage.setItem(STORAGE_KEY, aptJson);
+const sizeKB = Math.round(JSON.stringify(apartments).length/1024);
+localStorage.setItem(STORAGE_KEY, JSON.stringify(apartments));
 localStorage.setItem(WEIGHT_KEY, JSON.stringify(weights));
 localStorage.setItem(CHECKLIST_KEY, JSON.stringify(checklist));
+if(sizeKB > 4000) showToast('数据已'+sizeKB+'KB，接近5MB上限，建议减少照片');
+return true;
 }catch(e){
 showToast('存储空间不足，请删除部分照片后重试');
 console.error('Save error:', e);
+return false;
 }
 }
 
@@ -1243,6 +1246,7 @@ event.target.value = '';
 function compressImage(dataUrl, maxWidth, quality, callback){
 const img = new Image();
 img.onload = function(){
+try{
 const canvas = document.createElement('canvas');
 let w = img.width, h = img.height;
 if(w > maxWidth){ h = Math.round(h * maxWidth / w); w = maxWidth; }
@@ -1250,7 +1254,9 @@ canvas.width = w; canvas.height = h;
 const ctx = canvas.getContext('2d');
 ctx.drawImage(img, 0, 0, w, h);
 callback(canvas.toDataURL('image/jpeg', quality));
+}catch(e){ callback(dataUrl); }
 };
+img.onerror = function(){ callback(dataUrl); };
 img.src = dataUrl;
 }
 
@@ -1488,10 +1494,11 @@ data.id = genId();
 data.createdAt = Date.now();
 apartments.push(data);
 }
-saveData();
+if(saveData()){
 closeForm();
 render();
 showToast(editingId?'已更新':'已添加');
+}
 }
 
 function closeForm(){
