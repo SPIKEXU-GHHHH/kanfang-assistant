@@ -762,10 +762,10 @@ const dy = e.touches[0].clientY - startY;
 
 // 首次移动时判断方向：水平滑动才处理，垂直滑动交给页面滚动
 if(!decided){
-if(Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+if(Math.abs(dx) < 18 && Math.abs(dy) < 18) return;
 decided = true;
 // 垂直方向优先：dy 明显大于 dx 时判定为垂直滚动
-isHorizontal = Math.abs(dx) > Math.abs(dy) * 1.4;
+isHorizontal = Math.abs(dx) > Math.abs(dy) * 2.0;
 if(!isHorizontal){ isDragging = false; return; }
 }
 if(!isHorizontal) return;
