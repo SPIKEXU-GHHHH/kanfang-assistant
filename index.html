@@ -296,7 +296,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <span class="header-title">看房对比助手</span>
 <div class="header-right">
 <button class="header-btn" onclick="forceRefresh()" title="强制刷新到最新版本" style="font-size:18px">⟳</button>
-<button class="header-btn" onclick="openMap()" title="房源地图">📍</button>
 <button class="header-btn" onclick="openExport()">↗</button>
 </div>
 </div>
@@ -305,6 +304,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <div class="view-toggle">
 <button class="active" id="btnCardView" onclick="switchView('card')">房源对比</button>
 <button id="btnTableView" onclick="switchView('table')">对比表格</button>
+<button id="btnMapView" onclick="switchView('map')">房源地图</button>
 <button id="btnChecklistView" onclick="switchView('checklist')">准备清单</button>
 </div>
 
@@ -1891,6 +1891,8 @@ document.head.appendChild(script);
 
 function closeMap(){
 document.getElementById('mapModal').classList.remove('show');
+currentView = 'card';
+switchView('card');
 }
 
 function initMap(){
@@ -2592,8 +2594,17 @@ function switchView(view){
 currentView = view;
 document.getElementById('btnCardView').classList.toggle('active', view==='card');
 document.getElementById('btnTableView').classList.toggle('active', view==='table');
+document.getElementById('btnMapView').classList.toggle('active', view==='map');
 document.getElementById('btnChecklistView').classList.toggle('active', view==='checklist');
+if(view==='map'){
+document.querySelector('.filter-bar').style.display = 'none';
+document.getElementById('mainContent').classList.add('no-filter');
+document.querySelector('.fab').style.display = 'none';
+openMap();
+}else{
+document.querySelector('.fab').style.display = '';
 render();
+}
 }
 
 function setFilter(filter){
