@@ -23,7 +23,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 
 /* Header */
 .header{position:fixed;top:0;left:0;right:0;height:52px;background:var(--primary);color:#fff;display:flex;align-items:center;padding:0 12px;z-index:100;box-shadow:0 2px 6px rgba(74,144,217,.3)}
-.header-title{font-size:17px;font-weight:600;flex:1;text-align:center}
+.header-title{font-size:17px;font-weight:600;position:absolute;left:50%;transform:translateX(-50%);pointer-events:none}
 .header-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:#fff;font-size:20px;cursor:pointer;border-radius:8px}
 .header-btn:active{background:rgba(255,255,255,.2)}
 
@@ -1329,14 +1329,24 @@ if(isIOS || isAndroid){
 const scheme = isIOS
 ? `iosamap://poi?sourceApplication=kanfang&name=${addr}&dev=0`
 : `androidamap://poi?sourceApplication=kanfang&keywords=${addr}&dev=0`;
-const start = Date.now();
+
+// 用 visibilitychange 精确判断 App 是否成功打开
+let appOpened = false;
+function onVisChange(){
+if(document.hidden) appOpened = true;
+}
+document.addEventListener('visibilitychange', onVisChange);
+
 window.location.href = scheme;
-// 如果 App 未安装，2 秒后回退到高德网页版搜索
+
+// 1.5 秒后检查：如果页面未被隐藏说明 App 未打开，才回退到网页版
 setTimeout(function(){
-if(Date.now() - start < 2200){
+document.removeEventListener('visibilitychange', onVisChange);
+if(!appOpened){
 window.location.href = `https://uri.amap.com/search?keyword=${addr}&view=map&src=kanfang`;
 }
-}, 2000);
+// App 已打开时不做任何跳转，用户返回后直接回到 PWA 主界面
+}, 1500);
 } else {
 // 电脑端：新标签打开高德网页搜索
 window.open(`https://uri.amap.com/search?keyword=${addr}&view=map&src=kanfang`, '_blank');
