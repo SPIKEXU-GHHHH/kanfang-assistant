@@ -270,6 +270,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <div class="header">
 <button class="header-btn" onclick="openSettings()">⚙</button>
 <span class="header-title">看房对比助手</span>
+<button class="header-btn" onclick="forceRefresh()" title="强制刷新到最新版本" style="font-size:18px">⟳</button>
 <button class="header-btn" onclick="openExport()">↗</button>
 </div>
 
@@ -1471,6 +1472,28 @@ renderSettings();
 document.getElementById('settingsModal').classList.add('show');
 }
 
+// ============ 强制刷新（PWA 模式下绕过缓存加载最新版本） ============
+async function forceRefresh(){
+// 显示刷新提示
+const btn = event?.target;
+if(btn){ btn.style.transform='rotate(360deg)'; btn.style.transition='transform 0.6s'; }
+try{
+// 1. 清除 Cache API 中的所有缓存（如果存在）
+if('caches' in window){
+const keys = await caches.keys();
+await Promise.all(keys.map(k=>caches.delete(k)));
+}
+// 2. 注销所有 Service Worker（如果存在）
+if('serviceWorker' in navigator){
+const regs = await navigator.serviceWorker.getRegistrations();
+await Promise.all(regs.map(r=>r.unregister()));
+}
+}catch(e){}
+// 3. 带时间戳强制重新加载，绕过 HTTP 缓存
+const url = location.href.split('?')[0].split('#')[0] + '?v=' + Date.now();
+location.href = url;
+}
+
 function renderSettings(){
 const dims = [
 {key:'price',label:'价格'},
@@ -2124,6 +2147,10 @@ setTimeout(()=>t.classList.remove('show'), 2000);
 }
 
 // ============ Init ============
+// 清理刷新后遗留的时间戳参数
+if(location.search.includes('v=')){
+history.replaceState(null,'',location.pathname);
+}
 loadData();
 render();
 
