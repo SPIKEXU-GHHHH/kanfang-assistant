@@ -369,15 +369,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <div class="modal-body" id="exportBody"></div>
 </div>
 
-<!-- Map Modal -->
-<div class="modal" id="mapModal">
-<div class="modal-header">
-<button class="back-btn" onclick="closeMap()">‹</button>
-<h2>房源地图</h2>
-</div>
-<div class="modal-body" id="mapBody"></div>
-</div>
-
 <!-- Confirm Dialog -->
 <div class="confirm-overlay" id="confirmOverlay">
 <div class="confirm-box">
@@ -706,10 +697,19 @@ const main = document.getElementById('mainContent');
 const filterBar = document.getElementById('filterBar');
 const fab = document.querySelector('.fab');
 
+if(currentView === 'map'){
+filterBar.style.display = 'none';
+main.classList.add('no-filter');
+fab.style.display = 'none';
+renderMapTab(main);
+return;
+}
+
 if(currentView === 'checklist'){
 filterBar.style.display = 'none';
 main.classList.add('no-filter');
 fab.textContent = '+';
+fab.style.display = '';
 renderChecklist();
 return;
 }
@@ -717,6 +717,7 @@ return;
 filterBar.style.display = 'flex';
 main.classList.remove('no-filter');
 fab.textContent = '+';
+fab.style.display = '';
 
 const filtered = getFiltered();
 if(filtered.length === 0){
@@ -1873,31 +1874,8 @@ document.getElementById('exportModal').classList.remove('show');
 }
 
 // ============ 房源地图 ============
-function openMap(){
-document.getElementById('mapModal').classList.add('show');
-if(window.AMap){ initMap(); return; }
-const body = document.getElementById('mapBody');
-body.innerHTML = '<div class="map-loading">⏳ 正在加载地图...</div>';
-// 高德 JS API 2.0 安全密钥，必须在脚本加载前设置
-window._AMapSecurityConfig = { securityJsCode:'0cd5a4c8a7b5ab5ef4299a99b7d8eab7' };
-const script = document.createElement('script');
-script.src = 'https://webapi.amap.com/maps?v=2.0&key='+AMAP_KEY+'&plugin=AMap.Geocoder';
-script.onload = function(){ initMap(); };
-script.onerror = function(){
-body.innerHTML = '<div class="map-loading">❌ 地图加载失败，请检查网络后重试</div>';
-};
-document.head.appendChild(script);
-}
-
-function closeMap(){
-document.getElementById('mapModal').classList.remove('show');
-currentView = 'card';
-switchView('card');
-}
-
-function initMap(){
-const body = document.getElementById('mapBody');
-body.innerHTML =
+function renderMapTab(container){
+const html =
 '<div class="form-section">'+
 '<div class="form-section-title">📍 公司地址</div>'+
 '<div class="map-co-row">'+
@@ -1911,19 +1889,33 @@ body.innerHTML =
 '</div>'+
 '<div id="mapCanvas"></div>'+
 '</div>';
+container.innerHTML = html;
 
+if(window.AMap){
+initMapInline();
+}else{
+window._AMapSecurityConfig = { securityJsCode:'0cd5a4c8a7b5ab5ef4299a99b7d8eab7' };
+const script = document.createElement('script');
+script.src = 'https://webapi.amap.com/maps?v=2.0&key='+AMAP_KEY+'&plugin=AMap.Geocoder';
+script.onload = function(){ initMapInline(); };
+script.onerror = function(){
+container.innerHTML = '<div class="form-section"><div class="map-loading">❌ 地图加载失败，请检查网络后重试</div></div>';
+};
+document.head.appendChild(script);
+}
+}
+
+function initMapInline(){
 const map = new AMap.Map('mapCanvas', {
 zoom: 12,
 center: [113.264435, 23.129163],
 resizeEnable: true
 });
 
-// 已存公司坐标直接标
 if(companyLat != null){
 addCompanyMarker(map, companyLng, companyLat);
 }
 
-// 标房源
 const withCoords = apartments.filter(a=>a.lat != null);
 const withoutCoords = apartments.filter(a=>a.lat == null && a.address);
 withCoords.forEach(a=>addAptMarker(map, a));
@@ -2596,15 +2588,7 @@ document.getElementById('btnCardView').classList.toggle('active', view==='card')
 document.getElementById('btnTableView').classList.toggle('active', view==='table');
 document.getElementById('btnMapView').classList.toggle('active', view==='map');
 document.getElementById('btnChecklistView').classList.toggle('active', view==='checklist');
-if(view==='map'){
-document.querySelector('.filter-bar').style.display = 'none';
-document.getElementById('mainContent').classList.add('no-filter');
-document.querySelector('.fab').style.display = 'none';
-openMap();
-}else{
-document.querySelector('.fab').style.display = '';
 render();
-}
 }
 
 function setFilter(filter){
