@@ -24,6 +24,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 /* Header */
 .header{position:fixed;top:0;left:0;right:0;height:52px;background:var(--primary);color:#fff;display:flex;align-items:center;padding:0 12px;z-index:100;box-shadow:0 2px 6px rgba(74,144,217,.3)}
 .header-title{font-size:17px;font-weight:600;position:absolute;left:50%;transform:translateX(-50%);pointer-events:none}
+.header-right{margin-left:auto;display:flex;gap:4px}
 .header-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:#fff;font-size:20px;cursor:pointer;border-radius:8px}
 .header-btn:active{background:rgba(255,255,255,.2)}
 
@@ -281,8 +282,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <div class="header">
 <button class="header-btn" onclick="openSettings()">⚙</button>
 <span class="header-title">看房对比助手</span>
+<div class="header-right">
 <button class="header-btn" onclick="forceRefresh()" title="强制刷新到最新版本" style="font-size:18px">⟳</button>
 <button class="header-btn" onclick="openExport()">↗</button>
+</div>
 </div>
 
 <!-- View Toggle - 3 tabs -->
