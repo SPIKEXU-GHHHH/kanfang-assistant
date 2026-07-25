@@ -1320,15 +1320,26 @@ function navigateTo(id){
 const apt = apartments.find(a=>a.id===id);
 if(!apt || !apt.address) return;
 const addr = encodeURIComponent(apt.address);
-// 统一使用高德官方 URI API 搜索接口，callnative=1 自动唤起 App
-const url = `https://uri.amap.com/search?keyword=${addr}&view=map&src=kanfang&callnative=1`;
 const ua = navigator.userAgent;
-if(/iPhone|iPad|iPod|Android/.test(ua)){
-// 手机端：直接跳转，callnative=1 会自动唤起高德 App 并搜索
-window.location.href = url;
+const isIOS = /iPhone|iPad|iPod/.test(ua);
+const isAndroid = /Android/.test(ua);
+
+if(isIOS || isAndroid){
+// 手机端：使用高德 App 官方 POI 搜索 scheme（iosamap://poi / androidamap://poi）
+const scheme = isIOS
+? `iosamap://poi?sourceApplication=kanfang&name=${addr}&dev=0`
+: `androidamap://poi?sourceApplication=kanfang&keywords=${addr}&dev=0`;
+const start = Date.now();
+window.location.href = scheme;
+// 如果 App 未安装，2 秒后回退到高德网页版搜索
+setTimeout(function(){
+if(Date.now() - start < 2200){
+window.location.href = `https://uri.amap.com/search?keyword=${addr}&view=map&src=kanfang`;
+}
+}, 2000);
 } else {
 // 电脑端：新标签打开高德网页搜索
-window.open(url, '_blank');
+window.open(`https://uri.amap.com/search?keyword=${addr}&view=map&src=kanfang`, '_blank');
 }
 }
 
