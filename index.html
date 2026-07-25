@@ -1941,6 +1941,9 @@ _dbSet(COMPANY_KEY, JSON.stringify({addr:addr, lat:loc.lat, lng:loc.lng}));
 if(window._coMarker){ window._mapInstance.remove(window._coMarker); }
 addCompanyMarker(window._mapInstance, loc.lng, loc.lat);
 window._mapInstance.setFitView();
+}else if(status==='error'){
+showToast('地理编码失败：请在高德控制台配置Key域名白名单');
+console.error('AMap geocode error:', result);
 }else{
 showToast('未找到该地址，请补充更详细的信息');
 }
@@ -1976,19 +1979,23 @@ map.add(marker);
 
 function geocodeApts(map, apts){
 const geocoder = new AMap.Geocoder();
-let i = 0;
+let i = 0, errs = 0;
 function next(){
-if(i >= apts.length) return;
+if(i >= apts.length){
+saveData();
+if(errs === apts.length && apts.length > 0) showToast('定位失败：请在高德控制台配置Key域名白名单');
+if(window._coMarker || apts.some(a=>a.lat)) map.setFitView();
+return;
+}
 const apt = apts[i];
 geocoder.getLocation(apt.address, function(status, result){
 if(status==='complete' && result.geocodes.length){
 const loc = result.geocodes[0].location;
 apt.lat = loc.lat; apt.lng = loc.lng;
 addAptMarker(map, apt);
-}
+} else if(status==='error'){ errs++; }
 i++;
-if(i < apts.length){ setTimeout(next, 200); }
-else{ saveData(); map.setFitView(); }
+setTimeout(next, 200);
 });
 }
 next();
