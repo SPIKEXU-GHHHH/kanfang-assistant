@@ -528,19 +528,46 @@ const elecPrice = parseFloat(apt.electricityUnitPrice)||0.62;
 // Electricity: area-based (lighting+AC for space) + per-person (devices+bedroom AC)
 const elecKwh = area * 2 + residents * 40; // 度/月
 const elecCost = elecKwh * elecPrice;
-// Water: base + per-person
+// Water: support combined or split cold/hot
+const waterSplit = apt.waterSplit === true || apt.waterSplit === 'true';
+let waterCost, waterInfo;
+if(waterSplit){
+const coldPrice = parseFloat(apt.coldWaterPrice)||3.5;
+const hotPrice = parseFloat(apt.hotWaterPrice)||25;
+const coldTons = residents * 3 + 2; // 冷水吨/月
+const hotTons = residents * 2 + 1; // 热水吨/月
+const coldCost = coldTons * coldPrice;
+const hotCost = hotTons * hotPrice;
+waterCost = coldCost + hotCost;
+waterInfo = {
+split:true,
+coldTons, coldPrice, coldCost,
+hotTons, hotPrice, hotCost,
+tons: coldTons + hotTons
+};
+}else{
+const waterPrice = parseFloat(apt.waterPrice)||5;
 const waterTons = residents * 3 + 2; // 吨/月
-const waterCost = waterTons * 5; // 5元/吨
+waterCost = waterTons * waterPrice;
+waterInfo = {split:false, tons:waterTons, price:waterPrice, cost:waterCost};
+}
 // Gas: per-person
 const gasM3 = residents * 8; // m³/月
 const gasCost = gasM3 * 3.5; // 3.5元/m³
 const monthly = elecCost + waterCost + gasCost;
+// Build detail string
+let waterDetail;
+if(waterSplit){
+waterDetail = `冷水:(${residents}人×3吨/人+2吨)×${waterInfo.coldPrice}元/吨=${waterInfo.coldTons}吨×${waterInfo.coldPrice}元/吨=${waterInfo.coldCost.toFixed(1)}元 | 热水:(${residents}人×2吨/人+1吨)×${waterInfo.hotPrice}元/吨=${waterInfo.hotTons}吨×${waterInfo.hotPrice}元/吨=${waterInfo.hotCost.toFixed(1)}元`;
+}else{
+waterDetail = `水费:(${residents}人×3吨/人+2吨)×${waterInfo.price}元/吨=${waterInfo.tons}吨×${waterInfo.price}元/吨=${waterCost.toFixed(1)}元`;
+}
 return {
 electricity:{kwh:elecKwh, price:elecPrice, cost:elecCost},
-water:{tons:waterTons, price:5, cost:waterCost},
+water:waterInfo,
 gas:{m3:gasM3, price:3.5, cost:gasCost},
 monthly: monthly,
-detail: `电费:(${area}㎡×2度/㎡+${residents}人×40度/人)×${elecPrice}元/度=${elecKwh.toFixed(0)}度×${elecPrice}元/度=${elecCost.toFixed(1)}元 | 水费:(${residents}人×3吨/人+2吨)×5元/吨=${waterTons}吨×5元/吨=${waterCost}元 | 燃气:${residents}人×8m³×3.5元/m³=${gasM3}m³×3.5元/m³=${gasCost}元`
+detail: `电费:(${area}㎡×2度/㎡+${residents}人×40度/人)×${elecPrice}元/度=${elecKwh.toFixed(0)}度×${elecPrice}元/度=${elecCost.toFixed(1)}元 | ${waterDetail} | 燃气:${residents}人×8m³×3.5元/m³=${gasM3}m³×3.5元/m³=${gasCost}元`
 };
 }
 
@@ -883,6 +910,33 @@ ${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${parseInt(v.residentCount)===n?'se
 <input class="form-input" id="f_electricityUnitPrice" type="number" step="0.01" placeholder="0.62" value="${v.electricityUnitPrice||''}">
 </div>
 <div class="form-group">
+<label class="form-label">水费计算方式</label>
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+<input type="radio" name="waterSplit" value="false" ${(!v.waterSplit||v.waterSplit==='false')?'checked':''} onchange="toggleWaterSplit()"> 统一计费
+</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer">
+<input type="radio" name="waterSplit" value="true" ${(v.waterSplit===true||v.waterSplit==='true')?'checked':''} onchange="toggleWaterSplit()"> 冷热水分开
+</label>
+</div>
+<div id="waterSingleFields">
+<label class="form-label" style="margin-top:4px">水费单价（元/吨）</label>
+<input class="form-input" id="f_waterPrice" type="number" step="0.01" placeholder="5" value="${v.waterPrice||''}">
+</div>
+<div id="waterSplitFields" style="display:none">
+<div class="form-row" style="margin-bottom:6px">
+<div class="form-group" style="flex:1">
+<label class="form-label">冷水单价（元/吨）</label>
+<input class="form-input" id="f_coldWaterPrice" type="number" step="0.01" placeholder="3.5" value="${v.coldWaterPrice||''}">
+</div>
+<div class="form-group" style="flex:1">
+<label class="form-label">热水单价（元/吨）</label>
+<input class="form-input" id="f_hotWaterPrice" type="number" step="0.01" placeholder="25" value="${v.hotWaterPrice||''}">
+</div>
+</div>
+</div>
+</div>
+<div class="form-group">
 <label class="form-label">其他月费用（自定义）</label>
 <div id="customFeesContainer"></div>
 <button class="add-fee-btn" onclick="addCustomFeeRow()">+ 添加费用项</button>
@@ -930,12 +984,22 @@ renderPhotoGrid();
 renderSubwayLines();
 renderCustomFees();
 toggleSubwaySection();
+toggleWaterSplit();
 updateCostPreview();
 // Add cost preview listeners
-['f_rent','f_area','f_propertyFee','f_tax','f_electricityUnitPrice','f_commuteCost','f_discount'].forEach(id=>{
+['f_rent','f_area','f_propertyFee','f_tax','f_electricityUnitPrice','f_waterPrice','f_coldWaterPrice','f_hotWaterPrice','f_commuteCost','f_discount'].forEach(id=>{
 const el = document.getElementById(id);
 if(el) el.addEventListener('input', updateCostPreview);
 });
+}
+
+function toggleWaterSplit(){
+const split = document.querySelector('input[name="waterSplit"]:checked')?.value === 'true';
+const singleFields = document.getElementById('waterSingleFields');
+const splitFields = document.getElementById('waterSplitFields');
+if(singleFields) singleFields.style.display = split ? 'none' : 'block';
+if(splitFields) splitFields.style.display = split ? 'block' : 'none';
+updateCostPreview();
 }
 
 function renderScoreInputs(){
@@ -1107,8 +1171,23 @@ const discount = parseFloat(document.getElementById('f_discount')?.value)||0;
 // Utility calculation
 const elecKwh = area * 2 + residents * 40;
 const elecCost = elecKwh * elecPrice;
+const waterSplit = document.querySelector('input[name="waterSplit"]:checked')?.value === 'true';
+let waterCost, waterFormulaHtml;
+if(waterSplit){
+const coldPrice = parseFloat(document.getElementById('f_coldWaterPrice')?.value)||3.5;
+const hotPrice = parseFloat(document.getElementById('f_hotWaterPrice')?.value)||25;
+const coldTons = residents * 3 + 2;
+const hotTons = residents * 2 + 1;
+const coldCost = coldTons * coldPrice;
+const hotCost = hotTons * hotPrice;
+waterCost = coldCost + hotCost;
+waterFormulaHtml = `<div class="cost-formula">冷水:(${residents}人×3吨/人+2吨)×${coldPrice}元/吨=${coldTons}吨×${coldPrice}元/吨=${coldCost.toFixed(1)}元</div><div class="cost-formula">热水:(${residents}人×2吨/人+1吨)×${hotPrice}元/吨=${hotTons}吨×${hotPrice}元/吨=${hotCost.toFixed(1)}元</div>`;
+}else{
+const waterPrice = parseFloat(document.getElementById('f_waterPrice')?.value)||5;
 const waterTons = residents * 3 + 2;
-const waterCost = waterTons * 5;
+waterCost = waterTons * waterPrice;
+waterFormulaHtml = `<div class="cost-formula">水费:(${residents}人×3吨/人+2吨)×${waterPrice}元/吨=${waterTons}吨×${waterPrice}元/吨=${waterCost.toFixed(1)}元</div>`;
+}
 const gasM3 = residents * 8;
 const gasCost = gasM3 * 3.5;
 const utilityMonthly = elecCost + waterCost + gasCost;
@@ -1130,7 +1209,7 @@ html += `<div class="cost-row"><span>月通勤费</span><span>${commute.toLocale
 // Utility with formula
 html += `<div class="cost-row"><span>月水电燃气费</span><span>${utilityMonthly.toFixed(1)} 元</span></div>`;
 html += `<div class="cost-formula">电费:(${area}㎡×2度/㎡+${residents}人×40度/人)×${elecPrice}元/度=${elecKwh.toFixed(0)}度×${elecPrice}元/度=${elecCost.toFixed(1)}元</div>`;
-html += `<div class="cost-formula">水费:(${residents}人×3吨/人+2吨)×5元/吨=${waterTons}吨×5元/吨=${waterCost}元</div>`;
+html += waterFormulaHtml;
 html += `<div class="cost-formula">燃气:${residents}人×8m³×3.5元/m³=${gasM3}m³×3.5元/m³=${gasCost}元</div>`;
 // Custom fees
 if(customTotal > 0){
@@ -1195,6 +1274,10 @@ propertyFee: document.getElementById('f_propertyFee').value,
 tax: document.getElementById('f_tax').value,
 residentCount: document.getElementById('f_residentCount').value,
 electricityUnitPrice: document.getElementById('f_electricityUnitPrice').value,
+waterSplit: document.querySelector('input[name="waterSplit"]:checked')?.value || 'false',
+waterPrice: document.getElementById('f_waterPrice')?.value || '',
+coldWaterPrice: document.getElementById('f_coldWaterPrice')?.value || '',
+hotWaterPrice: document.getElementById('f_hotWaterPrice')?.value || '',
 customFees: tempCustomFees.filter(f=>f.name||f.amount),
 discount: document.getElementById('f_discount').value,
 notes: document.getElementById('f_notes').value,
@@ -1308,7 +1391,7 @@ ${subwayHtml?`<div class="detail-row"><span class="detail-label">地铁线路</s
 <div class="cost-row"><span>月通勤费</span><span>${(parseFloat(apt.commuteCost)||0).toLocaleString()} 元</span></div>
 <div class="cost-row"><span>月水电燃气费</span><span>${util.monthly.toFixed(1)} 元</span></div>
 <div class="cost-formula">电费:(${parseFloat(apt.area)||0}㎡×2度/㎡+${residents}人×40度/人)×${util.electricity.price}元/度=${util.electricity.kwh.toFixed(0)}度×${util.electricity.price}元/度=${util.electricity.cost.toFixed(1)}元</div>
-<div class="cost-formula">水费:(${residents}人×3吨/人+2吨)×5元/吨=${util.water.tons}吨×5元/吨=${util.water.cost}元</div>
+${util.water.split ? `<div class="cost-formula">冷水:(${residents}人×3吨/人+2吨)×${util.water.coldPrice}元/吨=${util.water.coldTons}吨×${util.water.coldPrice}元/吨=${util.water.coldCost.toFixed(1)}元</div><div class="cost-formula">热水:(${residents}人×2吨/人+1吨)×${util.water.hotPrice}元/吨=${util.water.hotTons}吨×${util.water.hotPrice}元/吨=${util.water.hotCost.toFixed(1)}元</div>` : `<div class="cost-formula">水费:(${residents}人×3吨/人+2吨)×${util.water.price}元/吨=${util.water.tons}吨×${util.water.price}元/吨=${util.water.cost.toFixed(1)}元</div>`}
 <div class="cost-formula">燃气:${residents}人×8m³×3.5元/m³=${util.gas.m3}m³×3.5元/m³=${util.gas.cost}元</div>
 ${(apt.customFees||[]).map(f=>`<div class="cost-row"><span>${esc(f.name||'其他')}</span><span>${(parseFloat(f.amount)||0).toLocaleString()} 元</span></div>`).join('')}
 ${parseFloat(apt.discount)>0?`<div class="cost-row cost-discount"><span>月折扣/减免</span><span>-${(parseFloat(apt.discount)||0).toLocaleString()} 元</span></div>`:''}
