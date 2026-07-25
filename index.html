@@ -1955,23 +1955,35 @@ showToast('未找到该地址，请补充更详细的信息');
 function addCompanyMarker(map, lng, lat){
 window._coMarker = new AMap.Marker({
 position: [lng, lat],
-title: '公司',
-label: {content:'公司',offset:new AMap.Pixel(0,-20),direction:'top'},
+content: '<div style="color:#f44336;font-size:32px;line-height:1;text-shadow:0 1px 3px rgba(0,0,0,.3)">★</div>',
+offset: new AMap.Pixel(-16, -16),
 zIndex: 100
 });
 map.add(window._coMarker);
 }
 
 function addAptMarker(map, apt){
-const idx = apartments.indexOf(apt) + 1;
+const name = apt.name || '未命名';
 const marker = new AMap.Marker({
 position: [apt.lng, apt.lat],
-title: apt.name || '房源'+idx,
-label: {content: String(idx), direction:'center', style:{color:'#fff',fontSize:'11px',fontWeight:'600'}},
+title: name,
+label: {
+content: name,
+offset: new AMap.Pixel(0, -22),
+direction: 'top',
+style: {
+color: '#333',
+fontSize: '12px',
+fontWeight: '500',
+backgroundColor: 'rgba(255,255,255,.9)',
+borderRadius: '4px',
+padding: '2px 6px'
+}
+},
 zIndex: 50
 });
 marker.on('click', function(){
-const info = '<div style="padding:4px"><b>'+esc(apt.name||'房源'+idx)+'</b><br>'+
+const info = '<div style="padding:4px"><b>'+esc(name)+'</b><br>'+
 '<span style="font-size:12px;color:#666">'+esc(apt.rent||'-')+'元/月 · '+esc(apt.address||'')+'</span></div>';
 const iw = new AMap.InfoWindow({content: info, offset: new AMap.Pixel(0, -30)});
 iw.open(map, marker.getPosition());
