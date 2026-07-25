@@ -108,6 +108,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 .modal-header h2{flex:1;font-size:16px;font-weight:600;text-align:center;margin-right:44px}
 .modal-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
 
+/* Map */
+#mapCanvas{width:100%;height:calc(100vh - 220px);border-radius:8px}
+.map-co-row{display:flex;gap:8px;margin-bottom:10px}
+.map-co-row input{flex:1}
+.map-hint{font-size:12px;color:var(--text-3);margin-bottom:10px;display:flex;gap:12px}
+.map-hint i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px}
+.map-loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--text-3);font-size:14px}
+
 /* 全屏图片查看器 */
 .photo-viewer{position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:301;display:none;flex-direction:column}
 .photo-viewer.show{display:flex}
@@ -288,6 +296,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <span class="header-title">看房对比助手</span>
 <div class="header-right">
 <button class="header-btn" onclick="forceRefresh()" title="强制刷新到最新版本" style="font-size:18px">⟳</button>
+<button class="header-btn" onclick="openMap()" title="房源地图">📍</button>
 <button class="header-btn" onclick="openExport()">↗</button>
 </div>
 </div>
@@ -360,6 +369,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <div class="modal-body" id="exportBody"></div>
 </div>
 
+<!-- Map Modal -->
+<div class="modal" id="mapModal">
+<div class="modal-header">
+<button class="back-btn" onclick="closeMap()">‹</button>
+<h2>房源地图</h2>
+</div>
+<div class="modal-body" id="mapBody"></div>
+</div>
+
 <!-- Confirm Dialog -->
 <div class="confirm-overlay" id="confirmOverlay">
 <div class="confirm-box">
@@ -376,12 +394,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 const STORAGE_KEY = 'apartment_compare_data_v2';
 const WEIGHT_KEY = 'apartment_compare_weights_v1';
 const CHECKLIST_KEY = 'apartment_compare_checklist_v1';
+const COMPANY_KEY = 'apartment_compare_company_v1';
+const AMAP_KEY = '69c0e0065fa6d8feedab485f17d9686d';
 
 let apartments = [];
 let weights = {price:20, location:20, condition:20, commute:20, surrounding:20};
 let checklist = [];
 let currentView = 'card';
 let currentFilter = 'all';
+let companyAddress = '';
+let companyLat = null, companyLng = null;
 let editingId = null;
 let tempPhotos = [];
 let tempScores = {price:3, location:3, condition:3, commute:3, surrounding:3};
@@ -424,6 +446,8 @@ saveData();
 localStorage.removeItem('apartment_compare_data_v1');
 }
 }catch(e){console.error('Load error:',e)}
+const ca = localStorage.getItem(COMPANY_KEY);
+if(ca){ try{ const d=JSON.parse(ca); companyAddress=d.addr||''; companyLat=d.lat; companyLng=d.lng; }catch(e){ companyAddress=ca; } }
 initDefaultChecklist();
 }
 
@@ -1779,6 +1803,128 @@ document.getElementById('exportModal').classList.add('show');
 
 function closeExport(){
 document.getElementById('exportModal').classList.remove('show');
+}
+
+// ============ 房源地图 ============
+function openMap(){
+document.getElementById('mapModal').classList.add('show');
+if(window.AMap){ initMap(); return; }
+const body = document.getElementById('mapBody');
+body.innerHTML = '<div class="map-loading">⏳ 正在加载地图...</div>';
+const script = document.createElement('script');
+script.src = 'https://webapi.amap.com/maps?v=2.0&key='+AMAP_KEY+'&plugin=AMap.Geocoder';
+script.onload = function(){ initMap(); };
+script.onerror = function(){
+body.innerHTML = '<div class="map-loading">❌ 地图加载失败，请检查网络后重试</div>';
+};
+document.head.appendChild(script);
+}
+
+function closeMap(){
+document.getElementById('mapModal').classList.remove('show');
+}
+
+function initMap(){
+const body = document.getElementById('mapBody');
+body.innerHTML =
+'<div class="form-section">'+
+'<div class="form-section-title">📍 公司地址</div>'+
+'<div class="map-co-row">'+
+'<input class="form-input" id="coAddr" placeholder="输入公司地址，如：天河区体育西路111号" value="'+esc(companyAddress)+'">'+
+'<button class="btn btn-primary" onclick="locateCompany()" style="white-space:nowrap">定位</button>'+
+'</div>'+
+'<div class="map-hint">'+
+'<span><i style="background:var(--primary)"></i> 公司</span>'+
+'<span><i style="background:var(--danger)"></i> 房源</span>'+
+(apartments.length===0?'<span style="color:var(--warning)">暂无房源，请先添加</span>':'')+
+'</div>'+
+'<div id="mapCanvas"></div>'+
+'</div>';
+
+const map = new AMap.Map('mapCanvas', {
+zoom: 12,
+center: [113.264435, 23.129163],
+resizeEnable: true
+});
+
+// 已存公司坐标直接标
+if(companyLat != null){
+addCompanyMarker(map, companyLng, companyLat);
+}
+
+// 标房源
+const withCoords = apartments.filter(a=>a.lat != null);
+const withoutCoords = apartments.filter(a=>a.lat == null && a.address);
+withCoords.forEach(a=>addAptMarker(map, a));
+if(withoutCoords.length > 0) geocodeApts(map, withoutCoords);
+
+window._mapInstance = map;
+}
+
+function locateCompany(){
+const addr = document.getElementById('coAddr').value.trim();
+if(!addr){ showToast('请输入公司地址'); return; }
+companyAddress = addr;
+const geocoder = new AMap.Geocoder();
+geocoder.getLocation(addr, function(status, result){
+if(status==='complete' && result.geocodes.length){
+const loc = result.geocodes[0].location;
+companyLat = loc.lat; companyLng = loc.lng;
+localStorage.setItem(COMPANY_KEY, JSON.stringify({addr:addr, lat:loc.lat, lng:loc.lng}));
+if(window._coMarker){ window._mapInstance.remove(window._coMarker); }
+addCompanyMarker(window._mapInstance, loc.lng, loc.lat);
+window._mapInstance.setFitView();
+}else{
+showToast('未找到该地址，请补充更详细的信息');
+}
+});
+}
+
+function addCompanyMarker(map, lng, lat){
+window._coMarker = new AMap.Marker({
+position: [lng, lat],
+title: '公司',
+label: {content:'公司',offset:new AMap.Pixel(0,-20),direction:'top'},
+zIndex: 100
+});
+map.add(window._coMarker);
+}
+
+function addAptMarker(map, apt){
+const idx = apartments.indexOf(apt) + 1;
+const marker = new AMap.Marker({
+position: [apt.lng, apt.lat],
+title: apt.name || '房源'+idx,
+label: {content: String(idx), direction:'center', style:{color:'#fff',fontSize:'11px',fontWeight:'600'}},
+zIndex: 50
+});
+marker.on('click', function(){
+const info = '<div style="padding:4px"><b>'+esc(apt.name||'房源'+idx)+'</b><br>'+
+'<span style="font-size:12px;color:#666">'+esc(apt.rent||'-')+'元/月 · '+esc(apt.address||'')+'</span></div>';
+const iw = new AMap.InfoWindow({content: info, offset: new AMap.Pixel(0, -30)});
+iw.open(map, marker.getPosition());
+});
+map.add(marker);
+}
+
+function geocodeApts(map, apts){
+const geocoder = new AMap.Geocoder();
+let i = 0;
+function next(){
+if(i >= apts.length) return;
+const apt = apts[i];
+geocoder.getLocation(apt.address, function(status, result){
+if(status==='complete' && result.geocodes.length){
+const loc = result.geocodes[0].location;
+apt.lat = loc.lat; apt.lng = loc.lng;
+addAptMarker(map, apt);
+}
+i++;
+if(i < apts.length){ setTimeout(next, 200); }
+else{ saveData(); map.setFitView(); }
+});
+}
+next();
 }
 
 // ============ 微信分享 ============
