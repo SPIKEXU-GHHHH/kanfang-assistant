@@ -453,10 +453,14 @@ initDefaultChecklist();
 
 function saveData(){
 try{
-localStorage.setItem(STORAGE_KEY, JSON.stringify(apartments));
+const aptJson = JSON.stringify(apartments);
+localStorage.setItem(STORAGE_KEY, aptJson);
 localStorage.setItem(WEIGHT_KEY, JSON.stringify(weights));
 localStorage.setItem(CHECKLIST_KEY, JSON.stringify(checklist));
-}catch(e){console.error('Save error:',e)}
+}catch(e){
+showToast('存储空间不足，请删除部分照片后重试');
+console.error('Save error:', e);
+}
 }
 
 function genId(){return Date.now().toString(36)+Math.random().toString(36).substr(2,5)}
@@ -1222,16 +1226,32 @@ function handlePhotoUpload(event){
 const files = event.target.files;
 const max = 9 - tempPhotos.length;
 const toRead = Math.min(files.length, max);
-if(files.length > max) showToast(`最多添加9张照片，已添加前${max}张`);
+if(files.length > max) showToast('最多添加9张照片，已添加前'+max+'张');
 for(let i=0; i<toRead; i++){
 const reader = new FileReader();
 reader.onload = function(e){
-tempPhotos.push(e.target.result);
+compressImage(e.target.result, 800, 0.7, function(compressed){
+tempPhotos.push(compressed);
 renderPhotoGrid();
+});
 };
 reader.readAsDataURL(files[i]);
 }
 event.target.value = '';
+}
+
+function compressImage(dataUrl, maxWidth, quality, callback){
+const img = new Image();
+img.onload = function(){
+const canvas = document.createElement('canvas');
+let w = img.width, h = img.height;
+if(w > maxWidth){ h = Math.round(h * maxWidth / w); w = maxWidth; }
+canvas.width = w; canvas.height = h;
+const ctx = canvas.getContext('2d');
+ctx.drawImage(img, 0, 0, w, h);
+callback(canvas.toDataURL('image/jpeg', quality));
+};
+img.src = dataUrl;
 }
 
 function deletePhoto(index){
