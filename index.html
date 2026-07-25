@@ -685,7 +685,7 @@ ${photoHtml}
 <span class="card-name">${esc(apt.name||'未命名')}</span>
 <span class="card-rent">${apt.rent||'-'}<small>元/月</small></span>
 </div>
-${apt.address?`<div class="card-address" onclick="event.stopPropagation();navigateTo('${apt.id}')"><span class="addr-text">📍 ${esc(apt.address)}</span><span class="addr-nav">导航</span></div>`:''}
+${apt.address?`<div class="card-address" onclick="event.stopPropagation();navigateTo('${apt.id}')"><span class="addr-text">${esc(apt.address)}</span><span class="addr-nav">导航</span></div>`:''}
 <div class="card-info">
 <span>${esc(apt.layout||'-')} ${esc(apt.area||'-')}㎡</span>
 <span>${esc(apt.floor||'-')}层 ${esc(apt.orientation||'-')}</span>
@@ -1319,10 +1319,28 @@ tempCustomFees = [];
 function navigateTo(id){
 const apt = apartments.find(a=>a.id===id);
 if(!apt || !apt.address) return;
-// 搜索目的地地址，手机端会唤起高德 App，电脑端打开高德网页
 const addr = encodeURIComponent(apt.address);
-const url = `https://uri.amap.com/navigation?to=,,'${addr}'&mode=car&coordinate=wgs84&callnative=1`;
-window.open(url, '_blank');
+const ua = navigator.userAgent;
+const isIOS = /iPhone|iPad|iPod/.test(ua);
+const isAndroid = /Android/.test(ua);
+
+if(isIOS || isAndroid){
+// 手机端：使用高德 App 原生 scheme 直接发起导航
+const scheme = isIOS
+? `iosamap://navi?sourceApplication=看房对比助手&poiname=${addr}&dev=0&style=2`
+: `androidamap://navi?sourceApplication=看房对比助手&poiname=${addr}&dev=0&style=2`;
+const start = Date.now();
+window.location.href = scheme;
+// 如果 App 未安装，2 秒后回退到高德网页版
+setTimeout(function(){
+if(Date.now() - start < 2200){
+window.location.href = `https://uri.amap.com/navigation?to=,,${addr}&mode=car&callnative=1`;
+}
+}, 2000);
+} else {
+// 电脑端：新标签打开高德网页导航
+window.open(`https://uri.amap.com/navigation?to=,,${addr}&mode=car`, '_blank');
+}
 }
 
 function openDetail(id){
