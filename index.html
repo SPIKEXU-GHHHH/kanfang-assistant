@@ -396,6 +396,31 @@ const WEIGHT_KEY = 'apartment_compare_weights_v1';
 const CHECKLIST_KEY = 'apartment_compare_checklist_v1';
 const COMPANY_KEY = 'apartment_compare_company_v1';
 const AMAP_KEY = '69c0e0065fa6d8feedab485f17d9686d';
+const DB_NAME = 'kanfang_db';
+
+// IndexedDB wrapper (1GB+ storage vs 5MB localStorage)
+let _idb = null;
+function _openDB(){
+if(_idb) return Promise.resolve(_idb);
+return new Promise((resolve, reject) => {
+const r = indexedDB.open(DB_NAME, 1);
+r.onupgradeneeded = function(e){ e.target.result.createObjectStore('kv'); };
+r.onsuccess = function(e){ _idb = e.target.result; _idb.onclose = ()=>{_idb=null}; resolve(_idb); };
+r.onerror = function(e){ reject(e.target.error); };
+});
+}
+function _dbGet(key){ return _openDB().then(db=>new Promise((resolve,reject)=>{
+const tx=db.transaction('kv','readonly'); const r=tx.objectStore('kv').get(key);
+r.onsuccess=()=>resolve(r.result); r.onerror=e=>reject(e.target.error);
+}));}
+function _dbSet(key,val){ return _openDB().then(db=>new Promise((resolve,reject)=>{
+const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').put(val,key);
+tx.oncomplete=()=>resolve(); tx.onerror=e=>reject(e.target.error);
+}));}
+function _dbDel(key){ return _openDB().then(db=>new Promise((resolve,reject)=>{
+const tx=db.transaction('kv','readwrite'); tx.objectStore('kv').delete(key);
+tx.oncomplete=()=>resolve(); tx.onerror=e=>reject(e.target.error);
+}));}
 
 let apartments = [];
 let weights = {price:20, location:20, condition:20, commute:20, surrounding:20};
@@ -423,44 +448,59 @@ const SUBWAY_LINES = [
 ];
 function getLineColor(name){const l=SUBWAY_LINES.find(s=>s.n===name);return l?{bg:l.c,t:l.t}:{bg:'#999',t:'#fff'}}
 
-function loadData(){
+async function loadData(){
 try{
-const d = localStorage.getItem(STORAGE_KEY);
+// IndexedDB first, fallback to localStorage for migration
+let d = await _dbGet(STORAGE_KEY).catch(()=>null);
+if(!d){
+d = localStorage.getItem(STORAGE_KEY);
+if(d){
+// One-time migration: copy all data from localStorage to IndexedDB
+const p = [_dbSet(STORAGE_KEY, d)];
+const w = localStorage.getItem(WEIGHT_KEY); if(w) p.push(_dbSet(WEIGHT_KEY, w));
+const cl = localStorage.getItem(CHECKLIST_KEY); if(cl) p.push(_dbSet(CHECKLIST_KEY, cl));
+const ca = localStorage.getItem(COMPANY_KEY); if(ca) p.push(_dbSet(COMPANY_KEY, ca));
+await Promise.all(p);
+}
+}
 if(d) apartments = JSON.parse(d);
-const w = localStorage.getItem(WEIGHT_KEY);
+const w = await _dbGet(WEIGHT_KEY).catch(()=>null);
 if(w) weights = JSON.parse(w);
-const cl = localStorage.getItem(CHECKLIST_KEY);
+const cl = await _dbGet(CHECKLIST_KEY).catch(()=>null);
 if(cl) checklist = JSON.parse(cl);
-// Migrate transport values: 行李→行李携带, 当地→当地购买
+// Migrate transport values
 let migrated = false;
 checklist.forEach(c=>{
 if(c.transport==='行李'){c.transport='行李携带';migrated=true}
 if(c.transport==='当地'){c.transport='当地购买';migrated=true}
 });
-if(migrated) saveData();
+if(migrated) await saveData();
 // Migrate old data
 const old = localStorage.getItem('apartment_compare_data_v1');
 if(old && apartments.length===0){
 apartments = JSON.parse(old);
-saveData();
+await saveData();
 localStorage.removeItem('apartment_compare_data_v1');
 }
 }catch(e){console.error('Load error:',e)}
-const ca = localStorage.getItem(COMPANY_KEY);
+const ca = await _dbGet(COMPANY_KEY).catch(()=>null);
 if(ca){ try{ const d=JSON.parse(ca); companyAddress=d.addr||''; companyLat=d.lat; companyLng=d.lng; }catch(e){ companyAddress=ca; } }
 initDefaultChecklist();
 }
 
-function saveData(){
+async function saveData(){
 try{
-const sizeKB = Math.round(JSON.stringify(apartments).length/1024);
-localStorage.setItem(STORAGE_KEY, JSON.stringify(apartments));
-localStorage.setItem(WEIGHT_KEY, JSON.stringify(weights));
-localStorage.setItem(CHECKLIST_KEY, JSON.stringify(checklist));
-if(sizeKB > 4000) showToast('数据已'+sizeKB+'KB，接近5MB上限，建议减少照片');
+const json = JSON.stringify(apartments);
+const sizeKB = Math.round(json.length/1024);
+await Promise.all([
+_dbSet(STORAGE_KEY, json),
+_dbSet(WEIGHT_KEY, JSON.stringify(weights)),
+_dbSet(CHECKLIST_KEY, JSON.stringify(checklist))
+]);
+if(sizeKB > 4000) showToast('数据已'+sizeKB+'KB');
 return true;
 }catch(e){
-showToast('存储空间不足，请删除部分照片后重试');
+showToast('存储失败，请检查浏览器存储空间');
 console.error('Save error:', e);
 return false;
 }
@@ -1446,7 +1486,7 @@ preview.innerHTML = '';
 }
 }
 
-function saveForm(){
+async function saveForm(){
 const name = document.getElementById('f_name').value.trim();
 if(!name){showToast('请填写小区名称');return}
 const data = {
@@ -1494,7 +1534,7 @@ data.id = genId();
 data.createdAt = Date.now();
 apartments.push(data);
 }
-if(saveData()){
+if(await saveData()){
 closeForm();
 render();
 showToast(editingId?'已更新':'已添加');
@@ -1897,7 +1937,7 @@ geocoder.getLocation(addr, function(status, result){
 if(status==='complete' && result.geocodes.length){
 const loc = result.geocodes[0].location;
 companyLat = loc.lat; companyLng = loc.lng;
-localStorage.setItem(COMPANY_KEY, JSON.stringify({addr:addr, lat:loc.lat, lng:loc.lng}));
+_dbSet(COMPANY_KEY, JSON.stringify({addr:addr, lat:loc.lat, lng:loc.lng}));
 if(window._coMarker){ window._mapInstance.remove(window._coMarker); }
 addCompanyMarker(window._mapInstance, loc.lng, loc.lat);
 window._mapInstance.setFitView();
@@ -2584,13 +2624,15 @@ setTimeout(()=>t.classList.remove('show'), 2000);
 }
 
 // ============ Init ============
-// 清理刷新后遗留的时间戳参数
+// 分享视图标记（全局，renderCardView 和 bindSwipeToDelete 引用）
+let isSharedView = false;
+
+(async function(){
 if(location.search.includes('v=')){
 history.replaceState(null,'',location.pathname);
 }
 
 // 检测分享链接并加载只读数据
-let isSharedView = false;
 function loadSharedData(){
 const hash = location.hash;
 if(hash.startsWith('#share=')){
@@ -2598,7 +2640,6 @@ try{
 const encoded = hash.substring(7);
 const json = decodeURIComponent(escape(atob(encoded)));
 const data = JSON.parse(json);
-// 将分享数据还原为完整房源对象
 apartments = (data.a||[]).map(s=>({
 name:s.n, rent:s.r, area:s.ar, layout:s.l, floor:s.f, orientation:s.o,
 commuteTime:s.ct, commuteMethod:s.cm, needTransfer:!!s.tr, subwayLines:s.sl||[],
@@ -2618,14 +2659,14 @@ return false;
 }
 
 const hasShare = loadSharedData();
-if(!hasShare) loadData();
+if(!hasShare) await loadData();
 render();
 
-// 分享视图下隐藏添加按钮和导出按钮
 if(isSharedView){
 document.querySelector('.fab').style.display = 'none';
 document.querySelector('.header-right').style.display = 'none';
 }
+})();
 
 // Prevent body scroll when modal open
 document.addEventListener('touchmove', function(e){
