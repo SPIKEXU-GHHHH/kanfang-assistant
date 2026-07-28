@@ -45,6 +45,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 
 /* Card View */
 .card-list{padding:8px 12px}
+/* Card reorder */
+@keyframes shake-card{0%,100%{transform:translateX(0)} 25%{transform:translateX(-2px)} 75%{transform:translateX(2px)}}
+.card-shaking .apartment-card{animation:shake-card .35s ease-in-out infinite}
+.card-dragging{opacity:.9;z-index:10;box-shadow:0 8px 28px rgba(0,0,0,.2);transform:scale(1.02)}
+.card-list.editing .swipe-wrapper{user-select:none;-webkit-user-select:none}
 .swipe-wrapper{position:relative;margin-bottom:10px;overflow:hidden;border-radius:var(--radius);transform:translateZ(0)}
 .swipe-content{position:relative;z-index:1;background:var(--card);will-change:transform}
 .swipe-content.swiped{transform:translateX(-80px)}
@@ -106,7 +111,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 .modal-header{height:48px;background:var(--primary);color:#fff;display:flex;align-items:center;padding:0 12px;flex-shrink:0}
 .modal-header .back-btn{background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px}
 .modal-header h2{flex:1;font-size:16px;font-weight:600;text-align:center}
-.modal-header .modal-action{background:rgba(255,255,255,.2);border:none;color:#fff;font-size:13px;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:500}
+.modal-header .modal-action{background:rgba(255,255,255,.2);border:none;color:#fff;font-size:13px;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:500;margin-left:6px}
 .modal-header .modal-action:active{background:rgba(255,255,255,.35)}
 .modal-header .modal-action.danger{background:rgba(255,255,255,.15)}
 .modal-header .modal-action.danger:active{background:rgba(255,255,255,.3)}
@@ -297,6 +302,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
 <!-- Header -->
 <div class="header">
 <button class="header-btn" onclick="openSettings()">⚙</button>
+<button class="header-btn" id="sortBtn" onclick="toggleSortMode()" title="排列房源顺序" style="font-size:15px">☰</button>
 <span class="header-title">看房对比助手</span>
 <div class="header-right">
 <button class="header-btn" onclick="forceRefresh()" title="强制刷新到最新版本" style="font-size:18px">⟳</button>
@@ -424,6 +430,7 @@ let weights = {price:20, location:20, condition:20, commute:20, surrounding:20};
 let checklist = [];
 let currentView = 'card';
 let currentFilter = 'all';
+let sortMode = false;
 let companyAddress = '';
 let companyLat = null, companyLng = null;
 let editingId = null;
@@ -748,9 +755,15 @@ return apartments.filter(a=>(a.intention||'pending')===currentFilter);
 }
 
 function renderCardView(list, container){
-const sorted = [...list].sort((a,b)=>calcTotalScore(b)-calcTotalScore(a));
-let html = '<div class="card-list">';
-sorted.forEach(apt=>{
+// 按 order 升序排列（默认 order=0 时按综合评分降序）
+const sorted = [...list].sort((a,b)=>{
+const oa = a.order || 0, ob = b.order || 0;
+if(oa !== ob) return oa - ob;
+return calcTotalScore(b) - calcTotalScore(a);
+});
+const cls = sortMode ? 'card-list editing' : 'card-list';
+let html = '<div class="'+cls+'">';
+sorted.forEach((apt, idx)=>{
 const score = calcTotalScore(apt);
 const intention = apt.intention || 'pending';
 const intentionMap = {like:{t:'喜欢',c:'tag-like'},backup:{t:'备选',c:'tag-backup'},exclude:{t:'排除',c:'tag-exclude'},pending:{t:'待定',c:''}};
@@ -777,8 +790,8 @@ const lc = getLineColor(line);
 return `<span class="subway-tag-detail" style="background:${lc.bg};color:${lc.t}">${line}</span>`;
 }).join('');
 }
-html += `<div class="swipe-wrapper">
-<div class="swipe-content" data-id="${apt.id}" onclick="openDetail('${apt.id}')">
+html += `<div class="swipe-wrapper ${sortMode?'card-shaking':''}">
+<div class="swipe-content" data-id="${apt.id}" data-idx="${idx}" ${sortMode?`onpointerdown="event.stopPropagation();startCardDrag(event,'${apt.id}')"`:''} onclick="${sortMode?'':'openDetail(\''+apt.id+'\')'}">
 <div class="apartment-card">
 ${apt.needRevisit?'<div class="revisit-icon">⚑</div>':''}
 ${photoHtml}
@@ -926,7 +939,11 @@ btn.style.opacity = '0';
 }
 
 function renderTableView(list, container){
-const sorted = [...list].sort((a,b)=>calcTotalScore(b)-calcTotalScore(a));
+const sorted = [...list].sort((a,b)=>{
+const oa = a.order || 0, ob = b.order || 0;
+if(oa !== ob) return oa - ob;
+return calcTotalScore(b) - calcTotalScore(a);
+});
 let html = '<div class="table-wrap"><table><thead><tr>';
 const headers = ['小区名称','月租金','面积','户型','楼层','朝向','联系人','地铁线路','地铁距离','通勤时间','换乘','装修','采光','噪音','综合评分','年度总费用','意向'];
 headers.forEach(h=> html += `<th>${h}</th>`);
@@ -1547,6 +1564,7 @@ if(idx>=0){apartments[idx] = {...apartments[idx], ...data, updatedAt: Date.now()
 }else{
 data.id = genId();
 data.createdAt = Date.now();
+data.order = Date.now();
 apartments.push(data);
 }
 if(await saveData()){
@@ -2378,6 +2396,93 @@ html += '</div>';
 container.innerHTML = html;
 }
 
+// ============ 卡片排序 ============
+function toggleSortMode(){
+if(sortMode){
+// 退出排序模式
+sortMode = false;
+document.getElementById('sortBtn').style.color = '';
+}else{
+sortMode = true;
+document.getElementById('sortBtn').style.color = 'var(--warning)';
+}
+render();
+}
+
+let _cardDrag = null;
+function startCardDrag(e, id){
+if(!sortMode) return;
+e.preventDefault();
+const wrapper = e.currentTarget.closest('.swipe-wrapper');
+if(!wrapper) return;
+_cardDrag = {
+id: id,
+el: wrapper,
+startY: e.clientY,
+pointerId: e.pointerId,
+moved: false
+};
+wrapper.classList.add('card-dragging');
+try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
+document.addEventListener('pointermove', onCardDragMove);
+document.addEventListener('pointerup', onCardDragEnd);
+document.addEventListener('pointercancel', onCardDragEnd);
+}
+
+function onCardDragMove(e){
+if(!_cardDrag) return;
+e.preventDefault();
+const dy = e.clientY - _cardDrag.startY;
+if(Math.abs(dy) > 3) _cardDrag.moved = true;
+_cardDrag.el.style.transform = 'translateY('+dy+'px)';
+
+const list = _cardDrag.el.parentElement;
+const sibs = Array.from(list.querySelectorAll('.swipe-wrapper:not(.card-dragging)'));
+let insertBefore = null;
+for(const s of sibs){
+const r = s.getBoundingClientRect();
+if(e.clientY < r.top + r.height/2){ insertBefore = s; break; }
+}
+if(insertBefore && insertBefore !== _cardDrag.el.nextSibling){
+const oldR = _cardDrag.el.getBoundingClientRect();
+list.insertBefore(_cardDrag.el, insertBefore);
+const newR = _cardDrag.el.getBoundingClientRect();
+_cardDrag.startY += (newR.top - oldR.top);
+_cardDrag.el.style.transform = 'translateY('+(e.clientY - _cardDrag.startY)+'px)';
+}else if(!insertBefore && list.lastElementChild !== _cardDrag.el && sibs.length > 0){
+const oldR = _cardDrag.el.getBoundingClientRect();
+list.appendChild(_cardDrag.el);
+const newR = _cardDrag.el.getBoundingClientRect();
+_cardDrag.startY += (newR.top - oldR.top);
+_cardDrag.el.style.transform = 'translateY('+(e.clientY - _cardDrag.startY)+'px)';
+}
+}
+
+function onCardDragEnd(e){
+if(!_cardDrag) return;
+document.removeEventListener('pointermove', onCardDragMove);
+document.removeEventListener('pointerup', onCardDragEnd);
+document.removeEventListener('pointercancel', onCardDragEnd);
+_cardDrag.el.style.transform = '';
+_cardDrag.el.classList.remove('card-dragging');
+if(_cardDrag.moved){
+// 按当前 DOM 顺序更新 apartments 数组顺序
+const list = _cardDrag.el.parentElement;
+const wrappers = Array.from(list.querySelectorAll('.swipe-wrapper'));
+const orderedIds = wrappers.map(w=>w.querySelector('.swipe-content').dataset.id);
+const newOrder = [];
+orderedIds.forEach(id=>{
+const apt = apartments.find(a=>a.id===id);
+if(apt){ apt.order = (apt.order || 0) + newOrder.length; newOrder.push(apt); }
+});
+// 补充未显示在列表中的（被筛选掉的）
+apartments.forEach(a=>{ if(!newOrder.includes(a)) newOrder.push(a); });
+apartments = newOrder;
+saveData();
+}
+_cardDrag = null;
+}
+
 function onFabClick(){
 if(currentView === 'checklist'){
 showChecklistAddForm();
@@ -2600,6 +2705,7 @@ showToast('已删除');
 // ============ View Switching ============
 function switchView(view){
 currentView = view;
+if(sortMode) toggleSortMode();
 document.getElementById('btnCardView').classList.toggle('active', view==='card');
 document.getElementById('btnTableView').classList.toggle('active', view==='table');
 document.getElementById('btnMapView').classList.toggle('active', view==='map');
