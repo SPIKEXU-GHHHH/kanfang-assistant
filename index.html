@@ -2412,18 +2412,18 @@ render();
 let _cardDrag = null;
 function startCardDrag(e, id){
 if(!sortMode) return;
-e.preventDefault();
 const wrapper = e.currentTarget.closest('.swipe-wrapper');
 if(!wrapper) return;
 _cardDrag = {
 id: id,
 el: wrapper,
+startX: e.clientX,
 startY: e.clientY,
 pointerId: e.pointerId,
-moved: false
+moved: false,
+engaged: false
 };
 wrapper.classList.add('card-dragging');
-try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
 document.addEventListener('pointermove', onCardDragMove);
 document.addEventListener('pointerup', onCardDragEnd);
 document.addEventListener('pointercancel', onCardDragEnd);
@@ -2431,9 +2431,23 @@ document.addEventListener('pointercancel', onCardDragEnd);
 
 function onCardDragMove(e){
 if(!_cardDrag) return;
-e.preventDefault();
+const dx = e.clientX - _cardDrag.startX;
 const dy = e.clientY - _cardDrag.startY;
-if(Math.abs(dy) > 3) _cardDrag.moved = true;
+
+// 未进入拖拽状态前：先判断方向意图，垂直移动超过阈值才接管
+if(!_cardDrag.engaged){
+if(Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+// 水平移动优先 → 交给页面横向滑动；垂直移动 → 进入拖拽
+if(Math.abs(dx) > Math.abs(dy) * 1.5){ cancelCardDrag(); return; }
+_cardDrag.engaged = true;
+_cardDrag.moved = true;
+try{ e.currentTarget.setPointerCapture?.(e.pointerId); }catch(err){}
+e.preventDefault();
+return;
+}
+
+e.preventDefault();
+_cardDrag.moved = true;
 _cardDrag.el.style.transform = 'translateY('+dy+'px)';
 
 const list = _cardDrag.el.parentElement;
@@ -2458,6 +2472,16 @@ _cardDrag.el.style.transform = 'translateY('+(e.clientY - _cardDrag.startY)+'px)
 }
 }
 
+function cancelCardDrag(){
+if(!_cardDrag) return;
+document.removeEventListener('pointermove', onCardDragMove);
+document.removeEventListener('pointerup', onCardDragEnd);
+document.removeEventListener('pointercancel', onCardDragEnd);
+_cardDrag.el.style.transform = '';
+_cardDrag.el.classList.remove('card-dragging');
+_cardDrag = null;
+}
+
 function onCardDragEnd(e){
 if(!_cardDrag) return;
 document.removeEventListener('pointermove', onCardDragMove);
@@ -2465,7 +2489,7 @@ document.removeEventListener('pointerup', onCardDragEnd);
 document.removeEventListener('pointercancel', onCardDragEnd);
 _cardDrag.el.style.transform = '';
 _cardDrag.el.classList.remove('card-dragging');
-if(_cardDrag.moved){
+if(_cardDrag.engaged && _cardDrag.moved){
 // 按当前 DOM 顺序更新 apartments 数组顺序
 const list = _cardDrag.el.parentElement;
 const wrappers = Array.from(list.querySelectorAll('.swipe-wrapper'));
