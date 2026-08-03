@@ -2419,7 +2419,6 @@ let _cardDrag = null;
 
 function startCardDrag(e, id){
 if(!sortMode) return;
-e.preventDefault();
 const wrapper = e.currentTarget.closest('.swipe-wrapper');
 if(!wrapper) return;
 const t = e.changedTouches[0];
@@ -2429,32 +2428,11 @@ id: id,
 el: wrapper,
 startY: t.clientY,
 touchId: t.identifier,
-moved: false,
-pinned: false
+moved: false
 };
 document.addEventListener('touchmove', onCardDragMove, {passive:false});
 document.addEventListener('touchend', onCardDragEnd);
 document.addEventListener('touchcancel', onCardDragEnd);
-document.addEventListener('touchstart', onDragMultiTouch, {passive:false});
-}
-
-function onDragMultiTouch(e){
-if(!_cardDrag || _cardDrag.touchId == null) return;
-// 检测是否有新手指（非拖拽手指）触碰屏幕
-const hasNew = Array.from(e.changedTouches).some(t => t.identifier !== _cardDrag.touchId);
-if(!hasNew || _cardDrag.pinned) return;
-// 第二根手指出现：将卡片固定在屏幕当前位置，释放滚动
-_cardDrag.pinned = true;
-const r = _cardDrag.el.getBoundingClientRect();
-_cardDrag.pinX = r.left; _cardDrag.pinY = r.top;
-_cardDrag.el.style.position = 'fixed';
-_cardDrag.el.style.left = r.left + 'px';
-_cardDrag.el.style.top = r.top + 'px';
-_cardDrag.el.style.width = r.width + 'px';
-_cardDrag.el.style.zIndex = '100';
-_cardDrag.el.style.margin = '0';
-_cardDrag.el.style.transform = '';
-document.getElementById('mainContent').style.overflowY = 'auto';
 }
 
 function onCardDragMove(e){
@@ -2462,16 +2440,6 @@ if(!_cardDrag) return;
 const dragTouch = Array.from(e.touches).find(t => t.identifier === _cardDrag.touchId);
 if(!dragTouch) return;
 
-if(_cardDrag.pinned){
-// 双指模式：卡片固定在屏幕上，手指拖动卡片在屏幕移动
-const dy = dragTouch.clientY - _cardDrag.pinY;
-_cardDrag.el.style.top = (_cardDrag.pinY + dy) + 'px';
-_cardDrag.moved = true;
-return;
-}
-
-// 单指模式：正常拖拽排序
-e.preventDefault();
 const dy = dragTouch.clientY - _cardDrag.startY;
 if(Math.abs(dy) > 4) _cardDrag.moved = true;
 _cardDrag.el.style.transform = 'translateY('+dy+'px)';
@@ -2497,67 +2465,17 @@ const newR = _cardDrag.el.getBoundingClientRect();
 _cardDrag.startY += (newR.top - oldR.top);
 _cardDrag.el.style.transform = 'translateY('+(cy - _cardDrag.startY)+'px)';
 }
-// 边缘自动滚动
-const scrollArea = document.getElementById('mainContent');
-const edge = 60;
-const vy = dragTouch.clientY;
-const viewH = window.innerHeight;
-if(vy < edge + 150){ scrollArea.scrollTop -= (edge + 150 - vy) * 0.08; }
-else if(vy > viewH - edge){ scrollArea.scrollTop += (vy - viewH + edge) * 0.08; }
-}
-
-function dropCardAtPinned(){
-// 将固定在屏幕上的卡片恢复到 DOM 流中，插到正确位置
-const el = _cardDrag.el;
-const pinY = parseFloat(el.style.top) + el.offsetHeight/2;
-// 恢复样式
-el.style.position = ''; el.style.left = ''; el.style.top = '';
-el.style.width = ''; el.style.zIndex = ''; el.style.margin = '';
-el.style.transform = '';
-// 找到 pinY 对应的插入位置
-const list = el.parentElement;
-const sibs = Array.from(list.querySelectorAll('.swipe-wrapper:not(.card-dragging)'));
-let insertBefore = null;
-for(const s of sibs){
-const r = s.getBoundingClientRect();
-if(pinY < r.top + r.height/2){ insertBefore = s; break; }
-}
-if(insertBefore){ list.insertBefore(el, insertBefore); }
-else if(sibs.length > 0){ list.appendChild(el); }
 }
 
 function onCardDragEnd(e){
-if(!_cardDrag) return;
-const dragEnded = Array.from(e.changedTouches).some(t => t.identifier === _cardDrag.touchId);
-if(!dragEnded){
-// 非拖拽手指抬起，检查是否只剩一根手指
-const hasOther = Array.from(e.touches).some(t => t.identifier !== _cardDrag.touchId);
-if(!hasOther && _cardDrag.pinned){
-// 其他手指全抬起了，恢复单指拖拽模式
-if(_cardDrag.moved) dropCardAtPinned();
-_cardDrag.pinned = false;
-const dragTouch = Array.from(e.touches).find(t => t.identifier === _cardDrag.touchId);
-if(dragTouch){
-_cardDrag.startY = dragTouch.clientY;
-_cardDrag.el.style.transform = '';
-_cardDrag.el.classList.remove('card-dragging');
-_cardDrag.el.classList.add('card-dragging');
-}
-}
-return;
-}
+const dragEnded = Array.from(e.changedTouches).some(t => t.identifier === _cardDrag?.touchId);
+if(!dragEnded) return;
 
-// 拖拽手指抬起，结束拖拽
 document.removeEventListener('touchmove', onCardDragMove);
 document.removeEventListener('touchend', onCardDragEnd);
 document.removeEventListener('touchcancel', onCardDragEnd);
-document.removeEventListener('touchstart', onDragMultiTouch);
 _cardDrag.el.style.transform = '';
 _cardDrag.el.classList.remove('card-dragging');
-if(_cardDrag.pinned && _cardDrag.moved){
-dropCardAtPinned();
-_cardDrag.moved = true;
-}
 if(_cardDrag.moved){
 const list = _cardDrag.el.parentElement;
 const wrappers = Array.from(list.querySelectorAll('.swipe-wrapper'));
@@ -2567,7 +2485,6 @@ orderedIds.forEach(id=>{
 const apt = apartments.find(a=>a.id===id);
 if(apt){ apt.order = newOrder.length; newOrder.push(apt); }
 });
-// 补充未显示在列表中的（被筛选掉的）
 apartments.forEach(a=>{ if(!newOrder.includes(a)) newOrder.push(a); });
 apartments = newOrder;
 saveData();
