@@ -2461,6 +2461,13 @@ const newR = _cardDrag.el.getBoundingClientRect();
 _cardDrag.startY += (newR.top - oldR.top);
 _cardDrag.el.style.transform = 'translateY('+(cy - _cardDrag.startY)+'px)';
 }
+// 边缘自动滚动
+const scrollArea = document.getElementById('mainContent');
+const edge = 60;
+const vy = e.touches[0].clientY;
+const viewH = window.innerHeight;
+if(vy < edge + 150){ scrollArea.scrollTop -= (edge + 150 - vy) * 0.08; }
+else if(vy > viewH - edge){ scrollArea.scrollTop += (vy - viewH + edge) * 0.08; }
 }
 
 function onCardDragEnd(e){
@@ -2478,7 +2485,7 @@ const orderedIds = wrappers.map(w=>w.querySelector('.swipe-content').dataset.id)
 const newOrder = [];
 orderedIds.forEach(id=>{
 const apt = apartments.find(a=>a.id===id);
-if(apt){ apt.order = (apt.order || 0) + newOrder.length; newOrder.push(apt); }
+if(apt){ apt.order = newOrder.length; newOrder.push(apt); }
 });
 // 补充未显示在列表中的（被筛选掉的）
 apartments.forEach(a=>{ if(!newOrder.includes(a)) newOrder.push(a); });
