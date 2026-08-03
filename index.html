@@ -796,7 +796,7 @@ return `<span class="subway-tag-detail" style="background:${lc.bg};color:${lc.t}
 }).join('');
 }
 html += `<div class="swipe-wrapper">
-<div class="drag-handle" ${sortMode?`ontouchstart="event.stopPropagation();startCardDrag(event,'${apt.id}')"`:''}>≡</div>
+<div class="drag-handle" ${sortMode?`onpointerdown="event.stopPropagation();startCardDrag(event,'${apt.id}')"`:''}>≡</div>
 <div class="swipe-content" data-id="${apt.id}" data-idx="${idx}" onclick="${sortMode?'':'openDetail(\''+apt.id+'\')'}">
 <div class="apartment-card">
 ${apt.needRevisit?'<div class="revisit-icon">⚑</div>':''}
@@ -2421,36 +2421,32 @@ function startCardDrag(e, id){
 if(!sortMode) return;
 const wrapper = e.currentTarget.closest('.swipe-wrapper');
 if(!wrapper) return;
-const t = e.changedTouches[0];
 wrapper.classList.add('card-dragging');
-// 把监听器绑在拖拽手柄自身，不绑 document，避免拦截其他手指的滚动
 const handle = e.currentTarget;
+handle.setPointerCapture(e.pointerId);
 _cardDrag = {
 id: id,
 el: wrapper,
-startY: t.clientY,
-touchId: t.identifier,
-moved: false,
-handle: handle
+startY: e.clientY,
+pointerId: e.pointerId,
+moved: false
 };
-handle.addEventListener('touchmove', onCardDragMove, {passive:false});
-handle.addEventListener('touchend', onCardDragEnd);
-handle.addEventListener('touchcancel', onCardDragEnd);
+handle.addEventListener('pointermove', onCardDragMove);
+handle.addEventListener('pointerup', onCardDragEnd);
+handle.addEventListener('pointercancel', onCardDragEnd);
 }
 
 function onCardDragMove(e){
 if(!_cardDrag) return;
-const dragTouch = Array.from(e.touches).find(t => t.identifier === _cardDrag.touchId);
-if(!dragTouch) return;
-
-const dy = dragTouch.clientY - _cardDrag.startY;
+e.preventDefault();
+const dy = e.clientY - _cardDrag.startY;
 if(Math.abs(dy) > 4) _cardDrag.moved = true;
 _cardDrag.el.style.transform = 'translateY('+dy+'px)';
 
 const list = _cardDrag.el.parentElement;
 const sibs = Array.from(list.querySelectorAll('.swipe-wrapper:not(.card-dragging)'));
 let insertBefore = null;
-const cy = dragTouch.clientY;
+const cy = e.clientY;
 for(const s of sibs){
 const r = s.getBoundingClientRect();
 if(cy < r.top + r.height/2){ insertBefore = s; break; }
@@ -2471,20 +2467,18 @@ _cardDrag.el.style.transform = 'translateY('+(cy - _cardDrag.startY)+'px)';
 // 边缘自动滚动
 const scrollArea = document.getElementById('mainContent');
 const edge = 60;
-const vy = dragTouch.clientY;
+const vy = e.clientY;
 const viewH = window.innerHeight;
 if(vy < edge + 150){ scrollArea.scrollTop -= (edge + 150 - vy) * 0.08; }
 else if(vy > viewH - edge){ scrollArea.scrollTop += (vy - viewH + edge) * 0.08; }
 }
 
 function onCardDragEnd(e){
-const dragEnded = Array.from(e.changedTouches).some(t => t.identifier === _cardDrag?.touchId);
-if(!dragEnded) return;
-
-const h = _cardDrag.handle;
-h.removeEventListener('touchmove', onCardDragMove);
-h.removeEventListener('touchend', onCardDragEnd);
-h.removeEventListener('touchcancel', onCardDragEnd);
+if(!_cardDrag) return;
+const handle = e.currentTarget;
+handle.removeEventListener('pointermove', onCardDragMove);
+handle.removeEventListener('pointerup', onCardDragEnd);
+handle.removeEventListener('pointercancel', onCardDragEnd);
 _cardDrag.el.style.transform = '';
 _cardDrag.el.classList.remove('card-dragging');
 if(_cardDrag.moved){
